@@ -1,0 +1,135 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-primary: #faf8ff;
+    --card-bg: rgba(255, 255, 255, 0.95);
+    --border-color: rgba(233, 213, 255, 0.85);
+    --purple-glow: rgba(147, 51, 234, 0.2);
+    --accent-purple: #9333ea;
+    --halo-bg-core: rgba(250, 248, 255, 0.96);
+    --halo-bg-mid: rgba(250, 248, 255, 0.82);
+    --halo-shadow: rgba(250, 248, 255, 0.95);
+  }
+
+  .dark {
+    --bg-primary: #0a0414;
+    --card-bg: rgba(19, 10, 36, 0.88);
+    --border-color: rgba(147, 51, 234, 0.25);
+    --purple-glow: rgba(168, 85, 247, 0.35);
+    --accent-purple: #c084fc;
+    --halo-bg-core: rgba(10, 4, 20, 0.96);
+    --halo-bg-mid: rgba(10, 4, 20, 0.82);
+    --halo-shadow: rgba(10, 4, 20, 0.95);
+  }
+
+  body {
+    background-color: var(--bg-primary);
+  }
+}
+
+/* Custom Purple Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.04);
+}
+.dark ::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+::-webkit-scrollbar-thumb {
+  background: #7e22ce;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9333ea;
+}
+
+/* Glassmorphism Cards */
+.glass-panel {
+  background: var(--card-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+}
+
+.glass-panel-hover {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.glass-panel-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px -10px var(--purple-glow);
+  border-color: rgba(147, 51, 234, 0.5);
+}
+
+/* Neon Glow Accents */
+.neon-purple-border {
+  border-color: #9333ea;
+  box-shadow: 0 0 18px rgba(147, 51, 234, 0.35);
+}
+
+.neon-purple-text {
+  color: #a855f7;
+  text-shadow: 0 0 12px rgba(168, 85, 247, 0.45);
+}
+
+/* Basmala Calligraphy */
+.basmala-text {
+  font-family: 'Amiri', serif;
+  letter-spacing: 0.5px;
+}
+
+/* Gentle Non-Overlapping Floating Animations for Background Elements */
+@keyframes floatDynamic1 {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) translateX(6px) rotate(4deg);
+  }
+}
+
+@keyframes floatDynamic2 {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(10px) translateX(-6px) rotate(-4deg);
+  }
+}
+
+@keyframes floatDynamic3 {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px) rotate(0deg) scale(1);
+  }
+  50% {
+    transform: translateY(-8px) translateX(-5px) rotate(3deg) scale(1.03);
+  }
+}
+
+.animate-float-1 {
+  animation: floatDynamic1 5s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-float-2 {
+  animation: floatDynamic2 6.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-float-3 {
+  animation: floatDynamic3 5.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Text Halo & Contrast Protection over Doctor Avatar */
+.text-halo {
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.95), 0 0 20px rgba(255, 255, 255, 0.8), 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.dark .text-halo {
+  text-shadow: 0 0 10px rgba(10, 4, 20, 0.95), 0 0 20px rgba(10, 4, 20, 0.8), 0 1px 3px rgba(0, 0, 0, 0.8);
+}

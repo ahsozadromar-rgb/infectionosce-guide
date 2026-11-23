@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://infection-osce-omarabdelaty.vercel.app/sitemap.xml

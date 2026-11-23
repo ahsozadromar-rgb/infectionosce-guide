@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Vercel metadata
+.vercel/
+
+# Environment variables (never commit API keys)
+.env
+.env.local
+.env.*.local
+
+# Temporary / local data scripts
+build_149_cases.py
+raw_149_cases.json
+src/data/studentsData.json
+src/components/StudentSearchSection.jsx
+
+# Logs & OS files
+*.log
+.DS_Store
+Thumbs.db
