@@ -4053,7 +4053,8 @@ export const studentsData = [
     "hospital": "السيد جلال",
     "examDate": "يوم الاربع",
     "examTime": "الساعة 8 صباحاً",
-    "locationDetails": "مستشفى السيد جلال - مبنى الطوارئ الدور الرابع قسم الجهاز الهضمي"
+    "locationDetails": "مستشفى السيد جلال - مبنى الطوارئ الدور الرابع قسم الجهاز الهضمي",
+    "hideSeating": true
   },
   {
     "id": 313,

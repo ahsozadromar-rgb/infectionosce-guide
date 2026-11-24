@@ -78,14 +78,16 @@ export default function CommitteesSection() {
   // Handle Copy Student Info
   const handleCopy = (student) => {
     playClickSound();
+    const isHiddenSeating = student.hideSeating || student.seating === '05-23377' || student.id === 312;
+    const cleanSeating = student.seating ? student.seating.replace(/^05-/, '') : '-';
+    const seatingLine = isHiddenSeating ? '' : `رقم الجلوس: ${cleanSeating}\n`;
     const infoText = `بيانات الطالب - باطنة أوسكي:
 الاسم: ${student.name}
-رقم الجلوس: ${student.seating}
-رقم اللجنة: ${student.committee}
+${seatingLine}رقم اللجنة: ${student.committee}
 الترتيب في اللجنة: ${student.rankText} في اللجنة (رقم ${student.committeeRank})
 المستشفى: ${student.hospital}
 موعد الامتحان: ${student.examDate} (${student.examTime})
-المكان: ${student.locationDetails}`;
+المكان: ${student.locationDetails}`.trim();
 
     navigator.clipboard.writeText(infoText).then(() => {
       setCopiedId(student.id);
@@ -249,9 +251,12 @@ export default function CommitteesSection() {
                   {student.group}
                 </span>
 
-                <span className="px-3 py-1 rounded-full text-xs font-black bg-purple-600 text-white font-inter shadow-xs tracking-wider">
-                  # {student.seating}
-                </span>
+                {/* Seating number is completely hidden ONLY for Omar Abdel-Aty, and shown as pure number without '#' and without '05-' for all others */}
+                {!student.hideSeating && student.seating !== '05-23377' && student.id !== 312 && student.seating && student.seating !== '-' && (
+                  <span className="px-3 py-1 rounded-full text-xs font-black bg-purple-600 text-white font-inter shadow-xs tracking-wider">
+                    {student.seating.replace(/^05-/, '')}
+                  </span>
+                )}
               </div>
 
               {/* Student Name */}
