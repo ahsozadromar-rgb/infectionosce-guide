@@ -210,7 +210,7 @@ export default function PrioritiesAndOsceSection({ onOpenLecturePage, onOpenHuss
           </div>
         </div>
 
-        {/* لو خلصت وباقي وقت (مطابق للشكل في Screenshot 113623 بدون أيقونة) */}
+        {/* لو خلصت وباقي وقت */}
         <div className="space-y-3 pt-3">
           <div className="relative flex items-center justify-center my-2">
             <div className="absolute inset-0 flex items-center">
@@ -221,12 +221,8 @@ export default function PrioritiesAndOsceSection({ onOpenLecturePage, onOpenHuss
             </div>
           </div>
 
-          <p className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 pr-2">
-            ادخل على دول
-          </p>
-
-          <div className="space-y-1.5 pr-2">
-            {/* تسجيلات د. حسين صبري */}
+          {/* تسجيلات د. حسين صبري (بين لو خلصت وباقي وقت وبين ادخل على دول) */}
+          <div className="pr-2">
             <div
               onClick={() => {
                 playClickSound();
@@ -246,7 +242,13 @@ export default function PrioritiesAndOsceSection({ onOpenLecturePage, onOpenHuss
                 <span>فتح التسجيلات (11 تسجيل)</span>
               </button>
             </div>
+          </div>
 
+          <p className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 pr-2">
+            ادخل على دول
+          </p>
+
+          <div className="space-y-1.5 pr-2">
             {extendedTopics.map((item, idx) => {
               const isLn = item.includes('L.N Examination');
               if (isLn) {

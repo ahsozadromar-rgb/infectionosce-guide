@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   ArrowLeft,
   Play, 
@@ -11,11 +11,20 @@ import {
   Headphones,
   SkipForward,
   SkipBack,
+  Download,
   CheckCircle2,
-  Sparkles,
-  Music
+  HardDrive,
+  Trash2,
+  Loader2,
+  Sparkles
 } from 'lucide-react';
 import { husseinSabryRecordings } from '../data/husseinSabryData';
+import { 
+  getCachedTrackBlob, 
+  getAllCachedTrackIds, 
+  downloadAndCacheTrack, 
+  clearAllCachedAudio 
+} from '../utils/audioStorage';
 import { playClickSound } from '../utils/soundEffects';
 
 export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackId = 1 }) {
@@ -27,6 +36,7 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
   const activeTrack = husseinSabryRecordings[currentTrackIndex] || husseinSabryRecordings[0];
 
   const audioRef = useRef(null);
+  const activeBlobUrlRef = useRef(null);
   const progressTrackRef = useRef(null);
   const speedTrackRef = useRef(null);
   const volumeTrackRef = useRef(null);
@@ -42,23 +52,53 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
 
-  const applyPlaybackRateToAudio = (audio, rate) => {
+  // Offline caching states
+  const [cachedTrackIds, setCachedTrackIds] = useState(new Set());
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 11, trackTitle: '' });
+  const [downloadingTrackId, setDownloadingTrackId] = useState(null);
+
+  // Load cached tracks on mount
+  useEffect(() => {
+    let isMounted = true;
+    getAllCachedTrackIds().then(ids => {
+      if (isMounted) {
+        setCachedTrackIds(new Set(ids));
+      }
+    });
+    return () => { isMounted = false; };
+  }, []);
+
+  // Safely apply playback rate to audio element
+  const applyPlaybackRateToAudio = useCallback((rate) => {
+    const audio = audioRef.current;
     if (!audio) return;
     try {
+      if ('preservesPitch' in audio) audio.preservesPitch = true;
+      if ('webkitPreservesPitch' in audio) audio.webkitPreservesPitch = true;
+      if ('mozPreservesPitch' in audio) audio.mozPreservesPitch = true;
       audio.playbackRate = rate;
-      if (audio.paused) {
-        audio.defaultPlaybackRate = rate;
-      }
+      audio.defaultPlaybackRate = rate;
     } catch (e) {
-      console.log('PlaybackRate error:', e);
+      console.warn('PlaybackRate set error:', e);
     }
+  }, []);
+
+  // Update speed
+  const changeSpeed = (rate) => {
+    playClickSound();
+    const clamped = Math.round(Math.max(0.5, Math.min(2.5, rate)) * 100) / 100;
+    playbackRateRef.current = clamped;
+    setPlaybackRate(clamped);
+    applyPlaybackRateToAudio(clamped);
   };
 
-  // Sync playback rate
-  useEffect(() => {
-    playbackRateRef.current = playbackRate;
-    applyPlaybackRateToAudio(audioRef.current, playbackRate);
-  }, [playbackRate]);
+  const cycleSpeed = () => {
+    const presets = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.5];
+    const currentIdx = presets.findIndex((p) => Math.abs(p - playbackRateRef.current) < 0.05);
+    const nextRate = presets[(currentIdx + 1) % presets.length];
+    changeSpeed(nextRate);
+  };
 
   // Sync volume & mute
   useEffect(() => {
@@ -69,7 +109,49 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     }
   }, [volume, isMuted]);
 
-  // Handle track switch
+  // Load audio source (either from IndexedDB cache or network MP3)
+  const loadAudioSource = useCallback(async (track, shouldPlay = false) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    // Clean up previous blob URL
+    if (activeBlobUrlRef.current) {
+      URL.revokeObjectURL(activeBlobUrlRef.current);
+      activeBlobUrlRef.current = null;
+    }
+
+    try {
+      // Check if track is cached in IndexedDB
+      const cachedBlob = await getCachedTrackBlob(track.id);
+      let targetSrc = track.audioUrl;
+
+      if (cachedBlob) {
+        const blobUrl = URL.createObjectURL(cachedBlob);
+        activeBlobUrlRef.current = blobUrl;
+        targetSrc = blobUrl;
+      }
+
+      audio.src = targetSrc;
+      audio.load();
+      applyPlaybackRateToAudio(playbackRateRef.current);
+
+      if (shouldPlay) {
+        audio.play().then(() => {
+          applyPlaybackRateToAudio(playbackRateRef.current);
+          setIsPlaying(true);
+        }).catch(err => {
+          console.log('Play on track switch error:', err);
+          setIsPlaying(false);
+        });
+      } else {
+        setIsPlaying(false);
+      }
+    } catch (e) {
+      console.error('loadAudioSource error:', e);
+    }
+  }, [applyPlaybackRateToAudio]);
+
+  // Handle track selection
   const selectTrack = (index, shouldPlay = true) => {
     playClickSound();
     if (index < 0 || index >= husseinSabryRecordings.length) return;
@@ -77,37 +159,21 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     const targetTrack = husseinSabryRecordings[index];
     setCurrentTime(0);
     setDuration(targetTrack.durationSeconds);
-
-    const audio = audioRef.current;
-    if (audio) {
-      audio.src = targetTrack.audioUrl;
-      audio.load();
-      applyPlaybackRateToAudio(audio, playbackRateRef.current);
-      if (shouldPlay) {
-        audio.play().then(() => {
-          applyPlaybackRateToAudio(audio, playbackRateRef.current);
-          setIsPlaying(true);
-        }).catch(err => console.log('Autoplay error:', err));
-      } else {
-        setIsPlaying(false);
-      }
-    }
+    loadAudioSource(targetTrack, shouldPlay);
   };
+
+  // Initial track load on mount
+  useEffect(() => {
+    loadAudioSource(activeTrack, false);
+  }, []);
 
   // Sync audio events
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    if ('preservesPitch' in audio) audio.preservesPitch = true;
-    if ('webkitPreservesPitch' in audio) audio.webkitPreservesPitch = true;
-    if ('mozPreservesPitch' in audio) audio.mozPreservesPitch = true;
-
-    const enforceRate = () => {
-      const target = playbackRateRef.current;
-      if (Math.abs(audio.playbackRate - target) > 0.001) {
-        audio.playbackRate = target;
-      }
+    const enforce = () => {
+      applyPlaybackRateToAudio(playbackRateRef.current);
     };
 
     const onTimeUpdate = () => {
@@ -117,17 +183,19 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     };
 
     const onLoadedMetadata = () => {
-      if (audio.duration && !isNaN(audio.duration)) {
+      if (audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
         setDuration(audio.duration);
       }
-      if ('preservesPitch' in audio) audio.preservesPitch = true;
-      if ('webkitPreservesPitch' in audio) audio.webkitPreservesPitch = true;
-      enforceRate();
+      enforce();
+    };
+
+    const onCanPlay = () => {
+      enforce();
     };
 
     const onPlay = () => {
       setIsPlaying(true);
-      enforceRate();
+      enforce();
     };
 
     const onPause = () => {
@@ -136,7 +204,7 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
 
     const onEnded = () => {
       setIsPlaying(false);
-      // Auto-advance to next track if available
+      // Auto-advance to next track
       if (currentTrackIndex < husseinSabryRecordings.length - 1) {
         selectTrack(currentTrackIndex + 1, true);
       }
@@ -144,26 +212,22 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
 
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
-    audio.addEventListener('canplay', enforceRate);
+    audio.addEventListener('canplay', onCanPlay);
     audio.addEventListener('play', onPlay);
-    audio.addEventListener('playing', enforceRate);
-    audio.addEventListener('seeked', enforceRate);
-    audio.addEventListener('ratechange', enforceRate);
+    audio.addEventListener('playing', enforce);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('ended', onEnded);
 
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
-      audio.removeEventListener('canplay', enforceRate);
+      audio.removeEventListener('canplay', onCanPlay);
       audio.removeEventListener('play', onPlay);
-      audio.removeEventListener('playing', enforceRate);
-      audio.removeEventListener('seeked', enforceRate);
-      audio.removeEventListener('ratechange', enforceRate);
+      audio.removeEventListener('playing', enforce);
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
     };
-  }, [currentTrackIndex]);
+  }, [currentTrackIndex, applyPlaybackRateToAudio]);
 
   // Spacebar toggle
   useEffect(() => {
@@ -185,9 +249,9 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
       audio.pause();
       setIsPlaying(false);
     } else {
-      applyPlaybackRateToAudio(audio, playbackRateRef.current);
+      applyPlaybackRateToAudio(playbackRateRef.current);
       audio.play().then(() => {
-        applyPlaybackRateToAudio(audio, playbackRateRef.current);
+        applyPlaybackRateToAudio(playbackRateRef.current);
         setIsPlaying(true);
       }).catch(e => console.log('Playback error:', e));
     }
@@ -198,22 +262,7 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     const audio = audioRef.current;
     if (!audio) return;
     audio.currentTime = Math.min(Math.max(audio.currentTime + seconds, 0), duration);
-    applyPlaybackRateToAudio(audio, playbackRateRef.current);
-  };
-
-  const changeSpeed = (rate) => {
-    const clamped = Math.round(Math.max(0.5, Math.min(2.5, rate)) * 100) / 100;
-    playbackRateRef.current = clamped;
-    setPlaybackRate(clamped);
-    applyPlaybackRateToAudio(audioRef.current, clamped);
-  };
-
-  const cycleSpeed = () => {
-    playClickSound();
-    const presets = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.5];
-    const currentIdx = presets.findIndex((p) => Math.abs(p - playbackRateRef.current) < 0.05);
-    const nextRate = presets[(currentIdx + 1) % presets.length];
-    changeSpeed(nextRate);
+    applyPlaybackRateToAudio(playbackRateRef.current);
   };
 
   const updateProgressFromClientX = (clientX) => {
@@ -225,7 +274,7 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     setCurrentTime(newTime);
     if (audioRef.current) {
       audioRef.current.currentTime = newTime;
-      applyPlaybackRateToAudio(audioRef.current, playbackRateRef.current);
+      applyPlaybackRateToAudio(playbackRateRef.current);
     }
   };
 
@@ -268,8 +317,83 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     }
   };
 
+  // Download a single track to IndexedDB
+  const handleDownloadSingleTrack = async (e, track) => {
+    e.stopPropagation();
+    playClickSound();
+    if (cachedTrackIds.has(track.id) || downloadingTrackId === track.id) return;
+
+    setDownloadingTrackId(track.id);
+    try {
+      await downloadAndCacheTrack(track);
+      setCachedTrackIds(prev => new Set([...prev, track.id]));
+      // If currently active track was downloaded, refresh its source to blob
+      if (track.id === activeTrack.id) {
+        const wasPlaying = isPlaying;
+        const currentPos = currentTime;
+        await loadAudioSource(track, false);
+        if (audioRef.current) {
+          audioRef.current.currentTime = currentPos;
+          if (wasPlaying) {
+            audioRef.current.play();
+            setIsPlaying(true);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Download single failed:', err);
+      alert('حدث خطأ أثناء تحميل التسجيل، يرجى المحاولة مرة أخرى.');
+    } finally {
+      setDownloadingTrackId(null);
+    }
+  };
+
+  // Download ALL 11 tracks for offline usage
+  const handleDownloadAllTracks = async () => {
+    playClickSound();
+    if (isDownloadingAll) return;
+    setIsDownloadingAll(true);
+
+    const uncached = husseinSabryRecordings.filter(r => !cachedTrackIds.has(r.id));
+    if (uncached.length === 0) {
+      setIsDownloadingAll(false);
+      return;
+    }
+
+    try {
+      let count = 0;
+      for (const track of uncached) {
+        count++;
+        setDownloadProgress({
+          current: count,
+          total: uncached.length,
+          trackTitle: track.title
+        });
+        await downloadAndCacheTrack(track);
+        setCachedTrackIds(prev => new Set([...prev, track.id]));
+      }
+      // If active track was just downloaded, update source
+      await loadAudioSource(activeTrack, isPlaying);
+    } catch (err) {
+      console.error('Download all failed:', err);
+      alert('حدث انقطاع في الشبكة أثناء التحميل، تم حفظ التسجيلات المكتملة.');
+    } finally {
+      setIsDownloadingAll(false);
+    }
+  };
+
+  // Clear offline storage
+  const handleClearCache = async () => {
+    playClickSound();
+    if (window.confirm('هل تريد حذف التسجيلات المحفوظة من ذاكرة المتصفح؟')) {
+      await clearAllCachedAudio();
+      setCachedTrackIds(new Set());
+      await loadAudioSource(activeTrack, false);
+    }
+  };
+
   const formatTime = (seconds) => {
-    if (isNaN(seconds)) return '00:00';
+    if (isNaN(seconds) || seconds < 0) return '00:00';
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
@@ -282,6 +406,7 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   const speedPercent = ((playbackRate - 0.5) / (2.5 - 0.5)) * 100;
   const volumePercent = isMuted ? 0 : volume * 100;
+  const allCached = husseinSabryRecordings.every(r => cachedTrackIds.has(r.id));
 
   return (
     <div className="min-h-screen pb-16 space-y-6">
@@ -289,7 +414,6 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
       {/* Hidden Audio Element */}
       <audio
         ref={audioRef}
-        src={activeTrack.audioUrl}
         preload="auto"
       />
 
@@ -305,7 +429,7 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
             </h1>
           </div>
           <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 mt-1">
-            مراجعة الانفكشن والعملي والأوسكي (11 تسجيل صوتي)
+            مراجعة الانفكشن والعملي والأوسكي (11 تسجيل MP3 سريع وبدون تأخير)
           </p>
         </div>
 
@@ -323,6 +447,88 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
 
       </div>
 
+      {/* Offline Storage Download Banner (Persistent in Browser) */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-purple-50 via-violet-50 to-purple-100/60 dark:from-purple-950/40 dark:via-slate-900 dark:to-purple-900/30 border border-purple-300 dark:border-purple-800 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <HardDrive className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-base font-black text-purple-950 dark:text-purple-100">
+                  الحفظ والاستماع بدون إنترنت (Offline Mode)
+                </h3>
+                {allCached ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>جميع التسجيلات محفوظة بالجهاز (11/11)</span>
+                  </span>
+                ) : (
+                  <span className="text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-200/60 dark:bg-purple-900/60 px-2 py-0.5 rounded-full">
+                    {cachedTrackIds.size} من 11 مسجلة في المتصفح
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium mt-0.5">
+                عند تحميل التسجيلات يتم تخزينها في متصفحك بشكل دائم، ولن يطلب منك تحميلها مرة أخرى حتى لو أغلقت الموقع وفتحته لاحقاً.
+              </p>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            {!allCached && (
+              <button
+                onClick={handleDownloadAllTracks}
+                disabled={isDownloadingAll}
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-purple-600/30 transition-all active:scale-95 disabled:opacity-60 cursor-pointer"
+              >
+                {isDownloadingAll ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>جاري تحميل {downloadProgress.current} من {downloadProgress.total}...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    <span>تحميل الكل للاستماع بدون نت</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {cachedTrackIds.size > 0 && !isDownloadingAll && (
+              <button
+                onClick={handleClearCache}
+                className="p-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-800 text-slate-500 hover:text-red-600 hover:border-red-300 dark:hover:border-red-800 transition-colors shadow-xs cursor-pointer"
+                title="حذف التسجيلات من ذاكرة الجهاز لتفريغ المساحة"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+        </div>
+
+        {/* Progress Bar during bulk download */}
+        {isDownloadingAll && (
+          <div className="mt-3 space-y-1">
+            <div className="flex items-center justify-between text-xs font-bold text-purple-800 dark:text-purple-300">
+              <span>{downloadProgress.trackTitle}</span>
+              <span>{Math.round((downloadProgress.current / downloadProgress.total) * 100)}%</span>
+            </div>
+            <div className="w-full h-2 bg-purple-200 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-purple-600 transition-all duration-300 rounded-full"
+                style={{ width: `${(downloadProgress.current / downloadProgress.total) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Active Track Title & Navigation Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 rounded-2xl bg-purple-50/80 dark:bg-slate-800/80 border border-purple-200 dark:border-purple-800/70 shadow-xs">
         <div className="flex items-center gap-3">
@@ -330,11 +536,19 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
             {activeTrack.id}
           </div>
           <div>
-            <h2 className="text-sm sm:text-base font-extrabold text-purple-950 dark:text-purple-100">
-              {activeTrack.title}
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-extrabold text-purple-950 dark:text-purple-100">
+                {activeTrack.title}
+              </h2>
+              {cachedTrackIds.has(activeTrack.id) && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/70 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>يعمل من الذاكرة المحلية</span>
+                </span>
+              )}
+            </div>
             <p className="text-xs text-purple-700 dark:text-purple-300 font-medium">
-              {activeTrack.subtitle} • مدة التسجيل: {activeTrack.durationStr}
+              {activeTrack.subtitle} • المدة: {activeTrack.durationStr} • الحجم: {activeTrack.sizeMb}
             </p>
           </div>
         </div>
@@ -386,7 +600,7 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
           {/* Time Labels */}
           <div className="flex items-center justify-between text-xs sm:text-sm font-extrabold text-slate-700 dark:text-slate-300 font-inter">
             
-            {/* Elapsed time on the LEFT (e.g. 00:00) */}
+            {/* Elapsed time on the LEFT */}
             <div className="flex items-center text-left">
               <span className="text-purple-700 dark:text-purple-300 font-bold font-mono text-sm sm:text-base">
                 {formatTime(currentTime)}
@@ -618,6 +832,24 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
 
         </div>
 
+        {/* Quick One-Tap Speed Presets Bar */}
+        <div className="flex items-center justify-center gap-1.5 sm:gap-2 pt-1 border-t border-purple-100 dark:border-purple-800/40">
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">السرعات المباشرة:</span>
+          {[0.75, 1, 1.25, 1.5, 1.75, 2].map((preset) => (
+            <button
+              key={preset}
+              onClick={() => changeSpeed(preset)}
+              className={`px-2.5 py-1 rounded-xl text-xs font-mono font-black transition-all active:scale-95 cursor-pointer ${
+                Math.abs(playbackRate - preset) < 0.05
+                  ? 'bg-purple-600 text-white shadow-sm ring-2 ring-purple-400/40'
+                  : 'bg-purple-50 dark:bg-slate-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/60 border border-purple-200 dark:border-purple-800'
+              }`}
+            >
+              {preset}x
+            </button>
+          ))}
+        </div>
+
       </div>
 
       {/* ============================================================ */}
@@ -633,7 +865,7 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
             </h3>
           </div>
           <span className="text-xs font-bold px-3 py-1 rounded-full bg-purple-100 dark:bg-purple-950/70 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-            اضغط على أي تسجيل لتشغيله بالمشغل
+            اضغط على أي تسجيل لتشغيله مباشرة
           </span>
         </div>
 
@@ -641,6 +873,9 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {husseinSabryRecordings.map((track, idx) => {
             const isCurrent = idx === currentTrackIndex;
+            const isCached = cachedTrackIds.has(track.id);
+            const isDownloadingThis = downloadingTrackId === track.id;
+
             return (
               <div
                 key={track.id}
@@ -652,8 +887,8 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
                 }`}
               >
                 {/* Left: Track Info */}
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm transition-all shadow-xs ${
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm transition-all shadow-xs shrink-0 ${
                     isCurrent
                       ? 'bg-purple-600 text-white'
                       : 'bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300'
@@ -669,14 +904,19 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
                     )}
                   </div>
 
-                  <div>
-                    <h4 className={`text-sm sm:text-base font-extrabold ${
-                      isCurrent 
-                        ? 'text-purple-950 dark:text-purple-100 font-black' 
-                        : 'text-slate-800 dark:text-slate-200'
-                    }`}>
-                      {track.title}
-                    </h4>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h4 className={`text-sm sm:text-base font-extrabold truncate ${
+                        isCurrent 
+                          ? 'text-purple-950 dark:text-purple-100 font-black' 
+                          : 'text-slate-800 dark:text-slate-200'
+                      }`}>
+                        {track.title}
+                      </h4>
+                      {isCached && (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" title="محفوظ في جهازك للاستماع أوفلاين" />
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
                       <span className="flex items-center gap-1 font-mono">
                         <Clock className="w-3 h-3 text-purple-500" />
@@ -684,26 +924,48 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
                       </span>
                       <span>•</span>
                       <span>{track.sizeMb}</span>
+                      {isCached && (
+                        <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800">
+                          أوفلاين ✓
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* Right: Play / Status Button */}
-                <div>
+                {/* Right: Play / Download Action Buttons */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Individual Download Button */}
+                  {!isCached && (
+                    <button
+                      onClick={(e) => handleDownloadSingleTrack(e, track)}
+                      disabled={isDownloadingThis}
+                      className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-950/70 transition-all shadow-xs active:scale-95 cursor-pointer"
+                      title="تحميل وحفظ التسجيل في المتصفح للاستماع بدون نت"
+                    >
+                      {isDownloadingThis ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+                      ) : (
+                        <Download className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
+
+                  {/* Play / Pause button */}
                   {isCurrent ? (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         togglePlayPause();
                       }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 text-white text-xs font-extrabold shadow-sm hover:bg-purple-700 transition-all active:scale-95"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 text-white text-xs font-extrabold shadow-sm hover:bg-purple-700 transition-all active:scale-95 cursor-pointer"
                     >
                       {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-current" />}
                       <span>{isPlaying ? 'إيقاف' : 'تشغيل'}</span>
                     </button>
                   ) : (
                     <button
-                      className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/60 transition-all shadow-xs"
+                      className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/60 transition-all shadow-xs cursor-pointer"
                       title="تشغيل"
                     >
                       <Play className="w-4 h-4 fill-current ml-0.5" />
