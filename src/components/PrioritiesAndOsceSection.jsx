@@ -266,32 +266,40 @@ export default function PrioritiesAndOsceSection({ onOpenLecturePage }) {
         </div>
 
         {/* لو مشترك مع هاشم */}
-        <div className="space-y-2.5 pt-3 border-t border-purple-100 dark:border-purple-900/30">
-          <h3 className="text-sm sm:text-base font-extrabold text-purple-900 dark:text-purple-300">
-            ● لو مشترك مع هاشم
-          </h3>
-          <div className="space-y-2 pr-2 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300">
-            <div className="flex items-center gap-2.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+        <div className="space-y-3 pt-3">
+          <div className="relative flex items-center justify-center my-2">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-purple-200 dark:border-purple-800" />
+            </div>
+            <div className="relative px-4 py-1 rounded-full bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-700 text-purple-800 dark:text-purple-300 font-extrabold text-xs sm:text-sm shadow-sm">
+              ● لو مشترك مع هاشم
+            </div>
+          </div>
+
+          <div className="space-y-1.5 pr-2">
+            <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800/60 text-slate-800 dark:text-slate-200 text-xs sm:text-sm font-bold select-text">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0"></span>
               <span>اسمع فيديوهات المراجعة</span>
             </div>
-            <div className="flex items-center gap-2.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+            <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800/60 text-slate-800 dark:text-slate-200 text-xs sm:text-sm font-bold select-text">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0"></span>
               <span>اسمع فيديو العملي وذاكر ملف العملي</span>
             </div>
-            <div className="flex items-center gap-2.5 pt-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-              <span>دي</span>
-              {/* فريم مطابق لـ Screenshot 122418 */}
-              <a
-                href="https://t.me/c/3510212703/179"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full border border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-extrabold text-xs sm:text-sm hover:scale-105 transition-all shadow-sm"
-              >
-                <ExternalLink className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                <span>الرسالة المثبتة</span>
-              </a>
+            <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800/60 text-slate-800 dark:text-slate-200 text-xs sm:text-sm font-bold select-text">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0"></span>
+              <div className="flex items-center gap-2">
+                <span>دي</span>
+                <a
+                  href="https://t.me/c/3510212703/179"
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={playClickSound}
+                  className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full border border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-extrabold text-xs sm:text-sm hover:scale-105 transition-all shadow-xs"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                  <span>الرسالة المثبتة</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>
