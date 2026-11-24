@@ -11,7 +11,8 @@ import {
   AlertTriangle,
   HelpCircle,
   FileText,
-  ListOrdered
+  ListOrdered,
+  Users
 } from 'lucide-react';
 import { playClickSound } from '../utils/soundEffects';
 
@@ -30,6 +31,7 @@ export default function Header({
     { id: 'priorities-section', label: 'هتعمل ايه', icon: ListOrdered },
     { id: 'osce-details-section', label: 'تفاصيل الاوسكي', icon: FileText },
     { id: 'notes-section', label: 'ملاحظات وتنبيهات', icon: AlertTriangle },
+    { id: 'committees-section', label: 'اعرف لجنتك', icon: Users },
     { id: 'questions-section', label: 'اسئلة', icon: HelpCircle },
     { id: 'selftest-section', label: 'اختبر نفسك', icon: FileQuestion },
   ];

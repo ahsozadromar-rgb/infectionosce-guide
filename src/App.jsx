@@ -5,6 +5,7 @@ import DoctorFixedAvatar from './components/DoctorFixedAvatar';
 import HeroBanner from './components/HeroBanner';
 import PrioritiesAndOsceSection from './components/PrioritiesAndOsceSection';
 import NotesAndAlertsSection from './components/NotesAndAlertsSection';
+import CommitteesSection from './components/CommitteesSection';
 import QuestionsSection from './components/QuestionsSection';
 import SelfTestSection from './components/SelfTestSection';
 import AudioLecturePage from './components/AudioLecturePage';
@@ -170,6 +171,9 @@ export default function App() {
 
             {/* Section 3: 3- ملاحظات وتنبيهات */}
             <NotesAndAlertsSection />
+
+            {/* Section: اعرف لجنتك */}
+            <CommitteesSection />
 
             {/* Section: اسئلة */}
             <QuestionsSection />

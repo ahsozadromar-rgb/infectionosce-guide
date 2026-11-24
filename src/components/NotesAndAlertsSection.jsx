@@ -8,7 +8,7 @@ export default function NotesAndAlertsSection() {
       type: 'text',
       mainText: (
         <span>
-          متنساش <span className="text-purple-600 dark:text-purple-400 font-black">اللوج بوك</span> وانت جاي
+          متنساش <span className="text-purple-600 dark:text-purple-400 font-black">اللوج بوك</span> وانت جي هتسلمه عند <span className="text-purple-600 dark:text-purple-400 font-black">مدام سعيدة السكرتيرة</span>
         </span>
       )
     },
@@ -50,7 +50,7 @@ export default function NotesAndAlertsSection() {
       type: 'text',
       mainText: (
         <span>
-          هتروح ب<span className="text-purple-600 dark:text-purple-400 font-black">البالطو والسماعة</span>
+          هتروح ب<span className="text-purple-600 dark:text-purple-400 font-black">البالطو</span> بدون اي ادوات <span className="text-purple-600 dark:text-purple-400 font-black">لا سماعة ولا غيره</span>
         </span>
       )
     },
