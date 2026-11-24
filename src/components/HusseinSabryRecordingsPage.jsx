@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   ArrowLeft,
   Play, 
@@ -9,24 +9,9 @@ import {
   VolumeX, 
   Clock,
   Headphones,
-  SkipForward,
-  SkipBack,
-  Download,
-  CheckCircle2,
-  HardDrive,
-  Trash2,
-  Loader2,
-  Gauge,
-  Zap,
-  Mic2
+  Sparkles
 } from 'lucide-react';
 import { husseinSabryRecordings } from '../data/husseinSabryData';
-import { 
-  getCachedTrackBlob, 
-  getAllCachedTrackIds, 
-  downloadAndCacheTrack, 
-  clearAllCachedAudio 
-} from '../utils/audioStorage';
 import { playClickSound } from '../utils/soundEffects';
 
 export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackId = 1 }) {
@@ -38,7 +23,6 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
   const activeTrack = husseinSabryRecordings[currentTrackIndex] || husseinSabryRecordings[0];
 
   const audioRef = useRef(null);
-  const activeBlobUrlRef = useRef(null);
   const progressTrackRef = useRef(null);
   const speedTrackRef = useRef(null);
   const volumeTrackRef = useRef(null);
@@ -46,84 +30,31 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
   const isDraggingSpeedRef = useRef(false);
   const isDraggingVolumeRef = useRef(false);
 
-  const [currentAudioSrc, setCurrentAudioSrc] = useState(activeTrack.audioUrl);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(activeTrack.durationSeconds || 240);
   const [playbackRate, setPlaybackRate] = useState(1);
   const playbackRateRef = useRef(1);
-  const [preservesPitch, setPreservesPitch] = useState(false);
-  const preservesPitchRef = useRef(false);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
 
-  // Offline caching states
-  const [cachedTrackIds, setCachedTrackIds] = useState(new Set());
-  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 11, trackTitle: '' });
-  const [downloadingTrackId, setDownloadingTrackId] = useState(null);
-
-  // Load cached tracks on mount
-  useEffect(() => {
-    let isMounted = true;
-    getAllCachedTrackIds().then(ids => {
-      if (isMounted) {
-        setCachedTrackIds(new Set(ids));
-      }
-    });
-    return () => { isMounted = false; };
-  }, []);
-
-  // Apply playback rate & pitch mode directly to audio element
-  const applyPlaybackRateToAudio = useCallback((rate, pitch = preservesPitchRef.current) => {
-    const audio = audioRef.current;
+  const applyPlaybackRateToAudio = (audio, rate) => {
     if (!audio) return;
     try {
       audio.playbackRate = rate;
       audio.defaultPlaybackRate = rate;
     } catch (e) {
-      console.warn('PlaybackRate set error:', e);
+      console.log('PlaybackRate error:', e);
     }
-    try {
-      if ('preservesPitch' in audio) audio.preservesPitch = pitch;
-      if ('webkitPreservesPitch' in audio) audio.webkitPreservesPitch = pitch;
-      if ('mozPreservesPitch' in audio) audio.mozPreservesPitch = pitch;
-    } catch (e) {}
-  }, []);
+  };
 
-  // Keep strictly synced with rate and pitch changes
+  // Keep ref and audio element strictly synced with playbackRate
   useEffect(() => {
     playbackRateRef.current = playbackRate;
-    preservesPitchRef.current = preservesPitch;
-    applyPlaybackRateToAudio(playbackRate, preservesPitch);
-  }, [playbackRate, preservesPitch, applyPlaybackRateToAudio]);
+    applyPlaybackRateToAudio(audioRef.current, playbackRate);
+  }, [playbackRate]);
 
-  // Update speed
-  const changeSpeed = (rate, shouldPlaySound = true) => {
-    if (shouldPlaySound) playClickSound();
-    const clamped = Math.round(Math.max(0.5, Math.min(3.0, rate)) * 100) / 100;
-    playbackRateRef.current = clamped;
-    setPlaybackRate(clamped);
-    applyPlaybackRateToAudio(clamped, preservesPitchRef.current);
-  };
-
-  const cycleSpeed = () => {
-    const presets = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
-    const currentIdx = presets.findIndex((p) => Math.abs(p - playbackRateRef.current) < 0.05);
-    const nextRate = presets[(currentIdx + 1) % presets.length];
-    changeSpeed(nextRate, true);
-  };
-
-  // Toggle pitch preservation
-  const togglePreservesPitch = () => {
-    playClickSound();
-    const nextPitch = !preservesPitch;
-    setPreservesPitch(nextPitch);
-    preservesPitchRef.current = nextPitch;
-    applyPlaybackRateToAudio(playbackRateRef.current, nextPitch);
-  };
-
-  // Sync volume & mute
+  // Keep audio element strictly synced with volume & mute
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) {
@@ -132,71 +63,41 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     }
   }, [volume, isMuted]);
 
-  // Load audio source
-  const loadAudioSource = useCallback(async (track, shouldPlay = false) => {
-    if (activeBlobUrlRef.current) {
-      URL.revokeObjectURL(activeBlobUrlRef.current);
-      activeBlobUrlRef.current = null;
-    }
-
-    try {
-      const cachedBlob = await getCachedTrackBlob(track.id);
-      let targetSrc = track.audioUrl;
-
-      if (cachedBlob) {
-        const blobUrl = URL.createObjectURL(cachedBlob);
-        activeBlobUrlRef.current = blobUrl;
-        targetSrc = blobUrl;
-      }
-
-      setCurrentAudioSrc(targetSrc);
-
-      const audio = audioRef.current;
-      if (audio) {
-        audio.src = targetSrc;
-        audio.load();
-        applyPlaybackRateToAudio(playbackRateRef.current, preservesPitchRef.current);
-
-        if (shouldPlay) {
-          audio.play().then(() => {
-            applyPlaybackRateToAudio(playbackRateRef.current, preservesPitchRef.current);
-            setIsPlaying(true);
-          }).catch(err => {
-            console.log('Play on track switch error:', err);
-            setIsPlaying(false);
-          });
-        } else {
-          setIsPlaying(false);
-        }
-      }
-    } catch (e) {
-      console.error('loadAudioSource error:', e);
-    }
-  }, [applyPlaybackRateToAudio]);
-
-  // Handle track selection
-  const selectTrack = (index, shouldPlay = true) => {
+  // Switch to a specific track
+  const selectTrack = (index, autoPlay = true) => {
     playClickSound();
     if (index < 0 || index >= husseinSabryRecordings.length) return;
     setCurrentTrackIndex(index);
     const targetTrack = husseinSabryRecordings[index];
     setCurrentTime(0);
-    setDuration(targetTrack.durationSeconds);
-    loadAudioSource(targetTrack, shouldPlay);
-  };
+    setDuration(targetTrack.durationSeconds || 240);
 
-  // Initial track load on mount
-  useEffect(() => {
-    loadAudioSource(activeTrack, false);
-  }, []);
+    const audio = audioRef.current;
+    if (audio) {
+      audio.src = targetTrack.audioUrl;
+      audio.load();
+      applyPlaybackRateToAudio(audio, playbackRateRef.current);
+      if (autoPlay) {
+        audio.play().then(() => {
+          applyPlaybackRateToAudio(audio, playbackRateRef.current);
+          setIsPlaying(true);
+        }).catch(err => {
+          console.log('Autoplay error:', err);
+          setIsPlaying(false);
+        });
+      } else {
+        setIsPlaying(false);
+      }
+    }
+  };
 
   // Sync audio events
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const enforce = () => {
-      applyPlaybackRateToAudio(playbackRateRef.current, preservesPitchRef.current);
+    const enforceRate = () => {
+      applyPlaybackRateToAudio(audio, playbackRateRef.current);
     };
 
     const onTimeUpdate = () => {
@@ -209,12 +110,12 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
       if (audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
         setDuration(audio.duration);
       }
-      enforce();
+      enforceRate();
     };
 
     const onPlay = () => {
       setIsPlaying(true);
-      enforce();
+      enforceRate();
     };
 
     const onPause = () => {
@@ -223,7 +124,7 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
 
     const onEnded = () => {
       setIsPlaying(false);
-      // Auto-advance to next track
+      // Auto-advance to next track if available
       if (currentTrackIndex < husseinSabryRecordings.length - 1) {
         selectTrack(currentTrackIndex + 1, true);
       }
@@ -231,24 +132,24 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
 
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
-    audio.addEventListener('canplay', enforce);
+    audio.addEventListener('canplay', enforceRate);
     audio.addEventListener('play', onPlay);
-    audio.addEventListener('playing', enforce);
-    audio.addEventListener('seeked', enforce);
+    audio.addEventListener('playing', enforceRate);
+    audio.addEventListener('seeked', enforceRate);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('ended', onEnded);
 
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
-      audio.removeEventListener('canplay', enforce);
+      audio.removeEventListener('canplay', enforceRate);
       audio.removeEventListener('play', onPlay);
-      audio.removeEventListener('playing', enforce);
-      audio.removeEventListener('seeked', enforce);
+      audio.removeEventListener('playing', enforceRate);
+      audio.removeEventListener('seeked', enforceRate);
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
     };
-  }, [currentTrackIndex, applyPlaybackRateToAudio]);
+  }, [currentTrackIndex]);
 
   // Spacebar toggle
   useEffect(() => {
@@ -270,9 +171,9 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
       audio.pause();
       setIsPlaying(false);
     } else {
-      applyPlaybackRateToAudio(playbackRateRef.current, preservesPitchRef.current);
+      applyPlaybackRateToAudio(audio, playbackRateRef.current);
       audio.play().then(() => {
-        applyPlaybackRateToAudio(playbackRateRef.current, preservesPitchRef.current);
+        applyPlaybackRateToAudio(audio, playbackRateRef.current);
         setIsPlaying(true);
       }).catch(e => console.log('Playback error:', e));
     }
@@ -283,7 +184,22 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     const audio = audioRef.current;
     if (!audio) return;
     audio.currentTime = Math.min(Math.max(audio.currentTime + seconds, 0), duration);
-    applyPlaybackRateToAudio(playbackRateRef.current, preservesPitchRef.current);
+    applyPlaybackRateToAudio(audio, playbackRateRef.current);
+  };
+
+  const changeSpeed = (rate) => {
+    playClickSound();
+    const clamped = Math.round(Math.max(0.5, Math.min(2.5, rate)) * 100) / 100;
+    playbackRateRef.current = clamped;
+    setPlaybackRate(clamped);
+    applyPlaybackRateToAudio(audioRef.current, clamped);
+  };
+
+  const cycleSpeed = () => {
+    const presets = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.5];
+    const currentIdx = presets.findIndex((p) => Math.abs(p - playbackRateRef.current) < 0.05);
+    const nextRate = presets[(currentIdx + 1) % presets.length];
+    changeSpeed(nextRate);
   };
 
   const updateProgressFromClientX = (clientX) => {
@@ -295,7 +211,7 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     setCurrentTime(newTime);
     if (audioRef.current) {
       audioRef.current.currentTime = newTime;
-      applyPlaybackRateToAudio(playbackRateRef.current, preservesPitchRef.current);
+      applyPlaybackRateToAudio(audioRef.current, playbackRateRef.current);
     }
   };
 
@@ -304,9 +220,9 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     if (!track) return;
     const rect = track.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const raw = 0.5 + ratio * (3.0 - 0.5);
+    const raw = 0.5 + ratio * (2.5 - 0.5);
     const snapped = Math.round(raw * 4) / 4;
-    changeSpeed(snapped, false);
+    changeSpeed(snapped);
   };
 
   const updateVolumeFromClientX = (clientX) => {
@@ -338,79 +254,6 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     }
   };
 
-  // Download a single track to IndexedDB
-  const handleDownloadSingleTrack = async (e, track) => {
-    e.stopPropagation();
-    playClickSound();
-    if (cachedTrackIds.has(track.id) || downloadingTrackId === track.id) return;
-
-    setDownloadingTrackId(track.id);
-    try {
-      await downloadAndCacheTrack(track);
-      setCachedTrackIds(prev => new Set([...prev, track.id]));
-      if (track.id === activeTrack.id) {
-        const wasPlaying = isPlaying;
-        const currentPos = currentTime;
-        await loadAudioSource(track, false);
-        if (audioRef.current) {
-          audioRef.current.currentTime = currentPos;
-          if (wasPlaying) {
-            audioRef.current.play();
-            setIsPlaying(true);
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Download single failed:', err);
-      alert('حدث خطأ أثناء تحميل التسجيل، يرجى المحاولة مرة أخرى.');
-    } finally {
-      setDownloadingTrackId(null);
-    }
-  };
-
-  // Download ALL 11 tracks for offline usage
-  const handleDownloadAllTracks = async () => {
-    playClickSound();
-    if (isDownloadingAll) return;
-    setIsDownloadingAll(true);
-
-    const uncached = husseinSabryRecordings.filter(r => !cachedTrackIds.has(r.id));
-    if (uncached.length === 0) {
-      setIsDownloadingAll(false);
-      return;
-    }
-
-    try {
-      let count = 0;
-      for (const track of uncached) {
-        count++;
-        setDownloadProgress({
-          current: count,
-          total: uncached.length,
-          trackTitle: track.title
-        });
-        await downloadAndCacheTrack(track);
-        setCachedTrackIds(prev => new Set([...prev, track.id]));
-      }
-      await loadAudioSource(activeTrack, isPlaying);
-    } catch (err) {
-      console.error('Download all failed:', err);
-      alert('حدث انقطاع في الشبكة أثناء التحميل، تم حفظ التسجيلات المكتملة.');
-    } finally {
-      setIsDownloadingAll(false);
-    }
-  };
-
-  // Clear offline storage
-  const handleClearCache = async () => {
-    playClickSound();
-    if (window.confirm('هل تريد حذف التسجيلات المحفوظة من ذاكرة المتصفح؟')) {
-      await clearAllCachedAudio();
-      setCachedTrackIds(new Set());
-      await loadAudioSource(activeTrack, false);
-    }
-  };
-
   const formatTime = (seconds) => {
     if (isNaN(seconds) || seconds < 0) return '00:00';
     const hrs = Math.floor(seconds / 3600);
@@ -423,37 +266,26 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
   };
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const speedPercent = ((playbackRate - 0.5) / (3.0 - 0.5)) * 100;
-  const volumePercent = isMuted ? 0 : volume * 100;
-  const allCached = husseinSabryRecordings.every(r => cachedTrackIds.has(r.id));
+  const speedPercent = ((playbackRate - 0.5) / (2.5 - 0.5)) * 100;
 
   return (
     <div className="min-h-screen pb-16 space-y-6">
       
-      {/* Audio Element */}
+      {/* Hidden Native Audio Element */}
       <audio
         ref={audioRef}
-        src={currentAudioSrc}
+        src={activeTrack.audioUrl}
         preload="auto"
       />
 
-      {/* Top Navigation Bar */}
+      {/* Top Navigation Bar: Title on the RIGHT, Back button on the LEFT */}
       <div className="flex items-center justify-between pb-4 border-b border-purple-200/80 dark:border-purple-800/60">
         
         {/* Title on the RIGHT */}
         <div className="text-right">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-6 rounded-full bg-purple-600 inline-block"></span>
-            <h1 className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white font-cairo">
-              تسجيلات د. حسين صبري
-            </h1>
-            <span className="text-[10px] sm:text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-              v3.4 - MP3 48kHz
-            </span>
-          </div>
-          <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 mt-1">
-            مراجعة الانفكشن والعملي والأوسكي (11 تسجيل صوتي ستيريو فائق السرعة)
-          </p>
+          <h1 className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white font-cairo">
+            تسجيلات د. حسين صبري
+          </h1>
         </div>
 
         {/* Back Button on the LEFT */}
@@ -470,163 +302,19 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
 
       </div>
 
-      {/* Offline Storage Download Banner (Persistent in Browser) */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-purple-50 via-violet-50 to-purple-100/60 dark:from-purple-950/40 dark:via-slate-900 dark:to-purple-900/30 border border-purple-300 dark:border-purple-800 shadow-sm">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          
-          <div className="flex items-start sm:items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-              <HardDrive className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-sm sm:text-base font-black text-purple-950 dark:text-purple-100">
-                  الحفظ والاستماع بدون إنترنت (Offline Mode)
-                </h3>
-                {allCached ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>جميع التسجيلات محفوظة بالجهاز (11/11)</span>
-                  </span>
-                ) : (
-                  <span className="text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-200/60 dark:bg-purple-900/60 px-2 py-0.5 rounded-full">
-                    {cachedTrackIds.size} من 11 مسجلة في المتصفح
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium mt-0.5">
-                عند تحميل التسجيلات يتم تخزينها في متصفحك بشكل دائم، ولن يطلب منك تحميلها مرة أخرى حتى لو أغلقت الموقع وفتحته لاحقاً.
-              </p>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-            {!allCached && (
-              <button
-                onClick={handleDownloadAllTracks}
-                disabled={isDownloadingAll}
-                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-purple-600/30 transition-all active:scale-95 disabled:opacity-60 cursor-pointer"
-              >
-                {isDownloadingAll ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>جاري تحميل {downloadProgress.current} من {downloadProgress.total}...</span>
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4" />
-                    <span>تحميل الكل للاستماع بدون نت</span>
-                  </>
-                )}
-              </button>
-            )}
-
-            {cachedTrackIds.size > 0 && !isDownloadingAll && (
-              <button
-                onClick={handleClearCache}
-                className="p-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-800 text-slate-500 hover:text-red-600 hover:border-red-300 dark:hover:border-red-800 transition-colors shadow-xs cursor-pointer"
-                title="حذف التسجيلات من ذاكرة الجهاز لتفريغ المساحة"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-
-        </div>
-
-        {/* Progress Bar during bulk download */}
-        {isDownloadingAll && (
-          <div className="mt-3 space-y-1">
-            <div className="flex items-center justify-between text-xs font-bold text-purple-800 dark:text-purple-300">
-              <span>{downloadProgress.trackTitle}</span>
-              <span>{Math.round((downloadProgress.current / downloadProgress.total) * 100)}%</span>
-            </div>
-            <div className="w-full h-2 bg-purple-200 dark:bg-slate-800 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-purple-600 transition-all duration-300 rounded-full"
-                style={{ width: `${(downloadProgress.current / downloadProgress.total) * 100}%` }}
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Active Track Title & Navigation Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 rounded-2xl bg-purple-50/80 dark:bg-slate-800/80 border border-purple-200 dark:border-purple-800/70 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center font-black text-sm shadow-sm">
-            {activeTrack.id}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm sm:text-base font-extrabold text-purple-950 dark:text-purple-100">
-                {activeTrack.title}
-              </h2>
-              {cachedTrackIds.has(activeTrack.id) && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/70 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
-                  <CheckCircle2 className="w-3 h-3" />
-                  <span>يعمل من الذاكرة المحلية</span>
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-purple-700 dark:text-purple-300 font-medium">
-              {activeTrack.subtitle} • المدة: {activeTrack.durationStr} • الحجم: {activeTrack.sizeMb}
-            </p>
-          </div>
-        </div>
-
-        {/* Quick Prev / Next Track buttons */}
-        <div className="flex items-center gap-2" dir="ltr">
-          <button
-            onClick={() => selectTrack(currentTrackIndex - 1, true)}
-            disabled={currentTrackIndex === 0}
-            className={`p-2 rounded-xl border text-xs font-bold transition-all flex items-center gap-1 ${
-              currentTrackIndex === 0
-                ? 'opacity-40 cursor-not-allowed border-slate-200 dark:border-slate-800 text-slate-400'
-                : 'bg-white dark:bg-slate-900 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100/60 dark:hover:bg-purple-950/50 active:scale-95 cursor-pointer'
-            }`}
-            title="التسجيل السابق"
-          >
-            <SkipBack className="w-4 h-4" />
-            <span className="hidden sm:inline">السابق</span>
-          </button>
-
-          <span className="text-xs font-mono font-bold text-slate-600 dark:text-slate-400 px-1">
-            {currentTrackIndex + 1} / {husseinSabryRecordings.length}
-          </span>
-
-          <button
-            onClick={() => selectTrack(currentTrackIndex + 1, true)}
-            disabled={currentTrackIndex === husseinSabryRecordings.length - 1}
-            className={`p-2 rounded-xl border text-xs font-bold transition-all flex items-center gap-1 ${
-              currentTrackIndex === husseinSabryRecordings.length - 1
-                ? 'opacity-40 cursor-not-allowed border-slate-200 dark:border-slate-800 text-slate-400'
-                : 'bg-white dark:bg-slate-900 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100/60 dark:hover:bg-purple-950/50 active:scale-95 cursor-pointer'
-            }`}
-            title="التسجيل التالي"
-          >
-            <span className="hidden sm:inline">التالي</span>
-            <SkipForward className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* ============================================================ */}
-      {/* Main Audio Player Console (Exact match to Screenshot 2026-11-24 232731.png) */}
-      {/* ============================================================ */}
+      {/* Main Audio Player Console (Exact match to AudioLecturePage.jsx) */}
       <div className="p-5 sm:p-6 rounded-3xl bg-white/95 dark:bg-slate-900/90 border-2 border-purple-300 dark:border-purple-800 shadow-xl backdrop-blur-md space-y-5">
         
         {/* Scrubber & Time Display */}
-        <div className="space-y-2" dir="ltr">
+        <div className="space-y-2">
           
           {/* Time Labels */}
           <div className="flex items-center justify-between text-xs sm:text-sm font-extrabold text-slate-700 dark:text-slate-300 font-inter">
             
-            {/* Elapsed time on the LEFT */}
-            <div className="flex items-center text-left">
-              <span className="text-purple-700 dark:text-purple-300 font-bold font-mono text-sm sm:text-base">
-                {formatTime(currentTime)}
+            {/* Total time on the RIGHT */}
+            <div className="flex items-center text-right">
+              <span className="text-slate-900 dark:text-white font-bold font-mono text-sm sm:text-base">
+                {formatTime(duration)}
               </span>
             </div>
 
@@ -635,10 +323,10 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
               {Math.round(progressPercent) || 0}%
             </span>
 
-            {/* Total time on the RIGHT */}
-            <div className="flex items-center text-right">
-              <span className="text-slate-900 dark:text-white font-bold font-mono text-sm sm:text-base">
-                {formatTime(duration)}
+            {/* Elapsed time on the LEFT */}
+            <div className="flex items-center text-left">
+              <span className="text-purple-700 dark:text-purple-300 font-bold font-mono text-sm sm:text-base">
+                {formatTime(currentTime)}
               </span>
             </div>
 
@@ -695,67 +383,79 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
         </div>
 
         {/* Playback Controls Row:
-            - Volume on the LEFT
-            - Main Controls in the EXACT CENTER (-5s, Play/Pause, +5s)
             - Speed on the RIGHT
+            - Main Controls in the EXACT CENTER (-5s, Play/Pause, +5s)
+            - Volume Pill on the LEFT with matching slider
         */}
-        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 sm:gap-4 pt-1" dir="ltr">
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 sm:gap-4 pt-1">
           
-          {/* 1. Volume Controller Pill on the LEFT */}
-          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full border-2 border-purple-300 dark:border-purple-700 bg-white/95 dark:bg-slate-800 shadow-sm shrink-0">
+          {/* 1. Speed Controller Pill on the RIGHT */}
+          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full border-2 border-purple-300 dark:border-purple-700 bg-white/95 dark:bg-slate-800 shadow-sm shrink-0" dir="ltr">
+            {/* Clickable Speed Badge to cycle presets */}
             <button
               type="button"
-              onClick={toggleMute}
-              className="text-purple-700 dark:text-purple-300 hover:text-purple-900 transition-colors cursor-pointer"
-              title={isMuted ? 'إلغاء الكتم' : 'كتم الصوت'}
+              onClick={cycleSpeed}
+              className="px-2 py-0.5 rounded-lg bg-purple-100 dark:bg-purple-950/70 hover:bg-purple-200 dark:hover:bg-purple-900 text-purple-800 dark:text-purple-300 font-mono font-bold text-xs min-w-[46px] text-center transition-colors cursor-pointer"
+              title="اضغط لتبديل السرعة"
             >
-              {isMuted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              {playbackRate.toFixed(playbackRate % 1 === 0 ? 1 : 2)}x
             </button>
+            
+            {/* Direct Pointer-Capture Speed Slider */}
             <div
-              ref={volumeTrackRef}
+              ref={speedTrackRef}
               role="slider"
-              aria-label="مستوى الصوت"
-              aria-valuemin={0}
-              aria-valuemax={1}
-              aria-valuenow={isMuted ? 0 : volume}
+              aria-label="تعديل سرعة التسجيل"
+              aria-valuemin={0.5}
+              aria-valuemax={2.5}
+              aria-valuenow={playbackRate}
               tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  changeSpeed(playbackRate + 0.25);
+                } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  changeSpeed(playbackRate - 0.25);
+                }
+              }}
               onPointerDown={(e) => {
-                isDraggingVolumeRef.current = true;
+                isDraggingSpeedRef.current = true;
                 e.currentTarget.setPointerCapture(e.pointerId);
-                updateVolumeFromClientX(e.clientX);
+                updateSpeedFromClientX(e.clientX);
               }}
               onPointerMove={(e) => {
-                if (isDraggingVolumeRef.current) {
-                  updateVolumeFromClientX(e.clientX);
+                if (isDraggingSpeedRef.current) {
+                  updateSpeedFromClientX(e.clientX);
                 }
               }}
               onPointerUp={(e) => {
-                isDraggingVolumeRef.current = false;
+                isDraggingSpeedRef.current = false;
                 if (e.currentTarget.hasPointerCapture(e.pointerId)) {
                   e.currentTarget.releasePointerCapture(e.pointerId);
                 }
               }}
               onPointerCancel={() => {
-                isDraggingVolumeRef.current = false;
+                isDraggingSpeedRef.current = false;
               }}
-              className="relative w-20 sm:w-24 h-7 flex items-center cursor-pointer touch-none select-none"
-              title="اسحب لتعديل مستوى الصوت"
+              className="relative w-24 sm:w-28 h-7 flex items-center cursor-pointer touch-none select-none"
+              title="اسحب أو اضغط لتعديل سرعة التسجيل"
             >
               <div className="w-full h-2 bg-purple-100 dark:bg-slate-700 rounded-full overflow-hidden pointer-events-none">
                 <div 
                   className="h-full bg-purple-600 rounded-full"
-                  style={{ width: `${Math.max(0, Math.min(100, volumePercent))}%` }}
+                  style={{ width: `${Math.max(0, Math.min(100, speedPercent))}%` }}
                 />
               </div>
               <div 
-                className="absolute w-3.5 h-3.5 bg-purple-600 border-2 border-white dark:border-slate-900 rounded-full shadow-md pointer-events-none -translate-x-1/2"
-                style={{ left: `${Math.max(0, Math.min(100, volumePercent))}%` }}
+                className="absolute w-4 h-4 bg-purple-600 border-2 border-white dark:border-slate-900 rounded-full shadow-md pointer-events-none -translate-x-1/2"
+                style={{ left: `${Math.max(0, Math.min(100, speedPercent))}%` }}
               />
             </div>
           </div>
 
           {/* 2. Main Playback Controls in the EXACT CENTER: -5s, Play/Pause, +5s */}
-          <div className="flex items-center justify-center gap-3 flex-1">
+          <div className="flex items-center justify-center gap-3 flex-1" dir="ltr">
             
             {/* Skip -5s */}
             <button
@@ -788,127 +488,58 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
 
           </div>
 
-          {/* 3. Speed Controller Pill on the RIGHT */}
-          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full border-2 border-purple-300 dark:border-purple-700 bg-white/95 dark:bg-slate-800 shadow-sm shrink-0">
-            {/* Clickable Speed Badge to cycle presets */}
+          {/* 3. Volume Controller Pill on the LEFT */}
+          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full border-2 border-purple-300 dark:border-purple-700 bg-white/95 dark:bg-slate-800 shadow-sm shrink-0" dir="ltr">
             <button
               type="button"
-              onClick={cycleSpeed}
-              className="px-2 py-0.5 rounded-lg bg-purple-100 dark:bg-purple-950/70 hover:bg-purple-200 dark:hover:bg-purple-900 text-purple-800 dark:text-purple-300 font-mono font-bold text-xs min-w-[46px] text-center transition-colors cursor-pointer"
-              title="اضغط لتبديل السرعة"
+              onClick={toggleMute}
+              className="text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-purple-100 transition-colors p-0.5 cursor-pointer"
+              title={isMuted || volume === 0 ? 'إلغاء الكتم' : 'كتم الصوت'}
             >
-              {playbackRate.toFixed(playbackRate % 1 === 0 ? 1 : 2)}x
+              {isMuted || volume === 0 ? <VolumeX className="w-4 h-4 text-rose-500" /> : <Volume2 className="w-4 h-4" />}
             </button>
             
-            {/* Direct Pointer-Capture Speed Slider */}
+            {/* Direct Pointer-Capture Volume Slider */}
             <div
-              ref={speedTrackRef}
+              ref={volumeTrackRef}
               role="slider"
-              aria-label="تعديل سرعة التسجيل"
-              aria-valuemin={0.5}
-              aria-valuemax={3.0}
-              aria-valuenow={playbackRate}
+              aria-label="تعديل مستوى الصوت"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round((isMuted ? 0 : volume) * 100)}
               tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
-                  e.preventDefault();
-                  changeSpeed(playbackRate + 0.25, true);
-                } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
-                  e.preventDefault();
-                  changeSpeed(playbackRate - 0.25, true);
-                }
-              }}
               onPointerDown={(e) => {
-                isDraggingSpeedRef.current = true;
+                isDraggingVolumeRef.current = true;
                 e.currentTarget.setPointerCapture(e.pointerId);
-                updateSpeedFromClientX(e.clientX);
+                updateVolumeFromClientX(e.clientX);
               }}
               onPointerMove={(e) => {
-                if (isDraggingSpeedRef.current) {
-                  updateSpeedFromClientX(e.clientX);
+                if (isDraggingVolumeRef.current) {
+                  updateVolumeFromClientX(e.clientX);
                 }
               }}
               onPointerUp={(e) => {
-                isDraggingSpeedRef.current = false;
+                isDraggingVolumeRef.current = false;
                 if (e.currentTarget.hasPointerCapture(e.pointerId)) {
                   e.currentTarget.releasePointerCapture(e.pointerId);
                 }
               }}
               onPointerCancel={() => {
-                isDraggingSpeedRef.current = false;
+                isDraggingVolumeRef.current = false;
               }}
               className="relative w-24 sm:w-28 h-7 flex items-center cursor-pointer touch-none select-none"
-              title="اسحب لتعديل السرعة"
+              title="اسحب أو اضغط لتعديل مستوى الصوت"
             >
               <div className="w-full h-2 bg-purple-100 dark:bg-slate-700 rounded-full overflow-hidden pointer-events-none">
                 <div 
                   className="h-full bg-purple-600 rounded-full"
-                  style={{ width: `${Math.max(0, Math.min(100, speedPercent))}%` }}
+                  style={{ width: `${(isMuted ? 0 : volume) * 100}%` }}
                 />
               </div>
               <div 
                 className="absolute w-4 h-4 bg-purple-600 border-2 border-white dark:border-slate-900 rounded-full shadow-md pointer-events-none -translate-x-1/2"
-                style={{ left: `${Math.max(0, Math.min(100, speedPercent))}%` }}
+                style={{ left: `${(isMuted ? 0 : volume) * 100}%` }}
               />
-            </div>
-          </div>
-
-        </div>
-
-        {/* Speed Controls: Direct Presets + Pitch Mode Switch */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-purple-100 dark:border-purple-800/40">
-          
-          {/* Quick Speed Buttons */}
-          <div className="flex items-center gap-1.5 flex-wrap justify-center sm:justify-start">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">سرعات مباشرة:</span>
-            {[0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3].map((preset) => {
-              const isActive = Math.abs(playbackRate - preset) < 0.05;
-              return (
-                <button
-                  key={preset}
-                  onClick={() => changeSpeed(preset, true)}
-                  className={`px-2.5 py-1 rounded-xl text-xs font-mono font-black transition-all active:scale-95 cursor-pointer ${
-                    isActive
-                      ? 'bg-purple-600 text-white shadow-md ring-2 ring-purple-400/50 scale-105'
-                      : 'bg-purple-50 dark:bg-slate-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/60 border border-purple-200 dark:border-purple-800'
-                  }`}
-                >
-                  {preset}x
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Mode Switch & Applied Speed Badge */}
-          <div className="flex items-center gap-2 flex-wrap justify-center">
-            {/* Pitch Mode Toggle Button */}
-            <button
-              onClick={togglePreservesPitch}
-              className={`px-3 py-1 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 border cursor-pointer active:scale-95 ${
-                preservesPitch
-                  ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-700'
-                  : 'bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700 shadow-xs'
-              }`}
-              title="اضغط للتبديل بين التسريع المباشر السريع أو الحفاظ على نبرة الصوت الطبيعية"
-            >
-              {preservesPitch ? (
-                <>
-                  <Mic2 className="w-3.5 h-3.5 text-purple-600" />
-                  <span>نبرة طبيعية (معالجة)</span>
-                </>
-              ) : (
-                <>
-                  <Zap className="w-3.5 h-3.5 text-amber-600" />
-                  <span>تسريع فوري ومباشر ⚡</span>
-                </>
-              )}
-            </button>
-
-            {/* Current Speed Badge */}
-            <div className="flex items-center gap-1 text-xs font-bold text-purple-800 dark:text-purple-200 bg-purple-100/90 dark:bg-purple-950/90 px-3 py-1 rounded-xl border border-purple-300 dark:border-purple-800">
-              <Gauge className="w-3.5 h-3.5 text-purple-600" />
-              <span>السرعة: </span>
-              <span className="font-mono font-black text-purple-900 dark:text-purple-100">{playbackRate.toFixed(playbackRate % 1 === 0 ? 1 : 2)}x</span>
             </div>
           </div>
 
@@ -916,43 +547,43 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
 
       </div>
 
-      {/* ============================================================ */}
-      {/* Recordings Playlist (11 Tracks) */}
-      {/* ============================================================ */}
-      <div className="rounded-3xl p-5 sm:p-6 bg-white/95 dark:bg-slate-900/90 border border-purple-200/80 dark:border-purple-900/60 shadow-md backdrop-blur-md space-y-4">
+      {/* Recordings Card: Only the 11 tracks, exactly as requested */}
+      <div className="p-6 sm:p-8 rounded-3xl bg-white/95 dark:bg-slate-900/95 border-2 border-purple-300 dark:border-purple-800 shadow-xl space-y-6 backdrop-blur-md">
         
-        <div className="flex items-center justify-between pb-3 border-b border-purple-200/60 dark:border-purple-800/40">
-          <div className="flex items-center gap-2">
-            <Headphones className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-            <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-              قائمة التسجيلات الصوتية (11 تسجيل)
-            </h3>
+        {/* Card Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-purple-200/80 dark:border-purple-800/60">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+              <span className="w-3 h-7 rounded-full bg-purple-600 inline-block"></span>
+              <span>تسجيلات د. حسين صبري (11 تسجيل)</span>
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+              اختر أي تسجيل من القائمة أدناه ليتم تشغيله بالمشغل أعلاه مباشرة
+            </p>
           </div>
-          <span className="text-xs font-bold px-3 py-1 rounded-full bg-purple-100 dark:bg-purple-950/70 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-            اضغط على أي تسجيل لتشغيله مباشرة
+
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-700">
+            التسجيل النشط الآن: {activeTrack.title}
           </span>
         </div>
 
-        {/* Tracks Grid / Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* The 11 Recordings Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
           {husseinSabryRecordings.map((track, idx) => {
             const isCurrent = idx === currentTrackIndex;
-            const isCached = cachedTrackIds.has(track.id);
-            const isDownloadingThis = downloadingTrackId === track.id;
-
             return (
               <div
                 key={track.id}
                 onClick={() => selectTrack(idx, true)}
-                className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all cursor-pointer select-none active:scale-[0.99] ${
+                className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer select-none active:scale-[0.99] ${
                   isCurrent
-                    ? 'bg-purple-100/80 dark:bg-purple-950/70 border-purple-500 dark:border-purple-600 shadow-md ring-2 ring-purple-400/40'
-                    : 'bg-purple-50/40 dark:bg-slate-800/40 border-purple-100 dark:border-purple-900/30 hover:bg-purple-50 dark:hover:bg-slate-800/80 hover:border-purple-300'
+                    ? 'bg-purple-100/90 dark:bg-purple-950/80 border-purple-600 dark:border-purple-500 shadow-md ring-2 ring-purple-400/40'
+                    : 'bg-purple-50/30 dark:bg-slate-800/40 border-purple-100 dark:border-purple-900/30 hover:bg-purple-50 dark:hover:bg-slate-800/80 hover:border-purple-300 dark:hover:border-purple-700'
                 }`}
               >
-                {/* Left: Track Info */}
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm transition-all shadow-xs shrink-0 ${
+                {/* Track Info */}
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-base transition-all shadow-xs shrink-0 ${
                     isCurrent
                       ? 'bg-purple-600 text-white'
                       : 'bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300'
@@ -969,68 +600,41 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
                   </div>
 
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <h4 className={`text-sm sm:text-base font-extrabold truncate ${
-                        isCurrent 
-                          ? 'text-purple-950 dark:text-purple-100 font-black' 
-                          : 'text-slate-800 dark:text-slate-200'
-                      }`}>
-                        {track.title}
-                      </h4>
-                      {isCached && (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" title="محفوظ في جهازك للاستماع أوفلاين" />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
-                      <span className="flex items-center gap-1 font-mono">
-                        <Clock className="w-3 h-3 text-purple-500" />
+                    <h3 className={`text-sm sm:text-base font-extrabold truncate ${
+                      isCurrent 
+                        ? 'text-purple-950 dark:text-purple-100 font-black' 
+                        : 'text-slate-800 dark:text-slate-200'
+                    }`}>
+                      {track.title}
+                    </h3>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      <span className="flex items-center gap-1 font-mono font-bold text-purple-600 dark:text-purple-400">
+                        <Clock className="w-3.5 h-3.5" />
                         {track.durationStr}
                       </span>
                       <span>•</span>
-                      <span>{track.sizeMb}</span>
-                      {isCached && (
-                        <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800">
-                          أوفلاين ✓
-                        </span>
-                      )}
+                      <span>{track.subtitle}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Right: Play / Download Action Buttons */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {/* Individual Download Button */}
-                  {!isCached && (
-                    <button
-                      onClick={(e) => handleDownloadSingleTrack(e, track)}
-                      disabled={isDownloadingThis}
-                      className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-950/70 transition-all shadow-xs active:scale-95 cursor-pointer"
-                      title="تحميل وحفظ التسجيل في المتصفح للاستماع بدون نت"
-                    >
-                      {isDownloadingThis ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
-                      ) : (
-                        <Download className="w-4 h-4" />
-                      )}
-                    </button>
-                  )}
-
-                  {/* Play / Pause button */}
+                {/* Play / Status Button */}
+                <div className="shrink-0 mr-2">
                   {isCurrent ? (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         togglePlayPause();
                       }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 text-white text-xs font-extrabold shadow-sm hover:bg-purple-700 transition-all active:scale-95 cursor-pointer"
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 text-white text-xs font-black shadow-sm hover:bg-purple-700 transition-all active:scale-95 cursor-pointer"
                     >
-                      {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                      {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
                       <span>{isPlaying ? 'إيقاف' : 'تشغيل'}</span>
                     </button>
                   ) : (
                     <button
-                      className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/60 transition-all shadow-xs cursor-pointer"
-                      title="تشغيل"
+                      className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-300 hover:bg-purple-100/70 dark:hover:bg-purple-950/60 transition-all shadow-xs cursor-pointer"
+                      title="تشغيل هذا التسجيل"
                     >
                       <Play className="w-4 h-4 fill-current ml-0.5" />
                     </button>
