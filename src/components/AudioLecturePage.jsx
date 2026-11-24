@@ -119,7 +119,6 @@ export default function AudioLecturePage({ onBackToHome }) {
     audio.addEventListener('play', onPlay);
     audio.addEventListener('playing', enforceRate);
     audio.addEventListener('seeked', enforceRate);
-    audio.addEventListener('ratechange', enforceRate);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('ended', onEnded);
 
@@ -130,7 +129,6 @@ export default function AudioLecturePage({ onBackToHome }) {
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('playing', enforceRate);
       audio.removeEventListener('seeked', enforceRate);
-      audio.removeEventListener('ratechange', enforceRate);
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
     };

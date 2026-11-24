@@ -16,7 +16,9 @@ import {
   HardDrive,
   Trash2,
   Loader2,
-  Gauge
+  Gauge,
+  Zap,
+  Mic2
 } from 'lucide-react';
 import { husseinSabryRecordings } from '../data/husseinSabryData';
 import { 
@@ -50,6 +52,8 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
   const [duration, setDuration] = useState(activeTrack.durationSeconds || 240);
   const [playbackRate, setPlaybackRate] = useState(1);
   const playbackRateRef = useRef(1);
+  const [preservesPitch, setPreservesPitch] = useState(false);
+  const preservesPitchRef = useRef(false);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
 
@@ -70,8 +74,8 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     return () => { isMounted = false; };
   }, []);
 
-  // Safely apply playback rate to audio element
-  const applyPlaybackRateToAudio = useCallback((rate) => {
+  // Apply playback rate & pitch mode directly to audio element
+  const applyPlaybackRateToAudio = useCallback((rate, pitch = preservesPitchRef.current) => {
     const audio = audioRef.current;
     if (!audio) return;
     try {
@@ -81,32 +85,42 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
       console.warn('PlaybackRate set error:', e);
     }
     try {
-      if ('preservesPitch' in audio) audio.preservesPitch = true;
-      if ('webkitPreservesPitch' in audio) audio.webkitPreservesPitch = true;
-      if ('mozPreservesPitch' in audio) audio.mozPreservesPitch = true;
+      if ('preservesPitch' in audio) audio.preservesPitch = pitch;
+      if ('webkitPreservesPitch' in audio) audio.webkitPreservesPitch = pitch;
+      if ('mozPreservesPitch' in audio) audio.mozPreservesPitch = pitch;
     } catch (e) {}
   }, []);
 
-  // Strictly sync audio element whenever playbackRate state changes
+  // Keep strictly synced with rate and pitch changes
   useEffect(() => {
     playbackRateRef.current = playbackRate;
-    applyPlaybackRateToAudio(playbackRate);
-  }, [playbackRate, applyPlaybackRateToAudio]);
+    preservesPitchRef.current = preservesPitch;
+    applyPlaybackRateToAudio(playbackRate, preservesPitch);
+  }, [playbackRate, preservesPitch, applyPlaybackRateToAudio]);
 
   // Update speed
   const changeSpeed = (rate, shouldPlaySound = true) => {
     if (shouldPlaySound) playClickSound();
-    const clamped = Math.round(Math.max(0.5, Math.min(2.5, rate)) * 100) / 100;
+    const clamped = Math.round(Math.max(0.5, Math.min(3.0, rate)) * 100) / 100;
     playbackRateRef.current = clamped;
     setPlaybackRate(clamped);
-    applyPlaybackRateToAudio(clamped);
+    applyPlaybackRateToAudio(clamped, preservesPitchRef.current);
   };
 
   const cycleSpeed = () => {
-    const presets = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.5];
+    const presets = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
     const currentIdx = presets.findIndex((p) => Math.abs(p - playbackRateRef.current) < 0.05);
     const nextRate = presets[(currentIdx + 1) % presets.length];
     changeSpeed(nextRate, true);
+  };
+
+  // Toggle pitch preservation
+  const togglePreservesPitch = () => {
+    playClickSound();
+    const nextPitch = !preservesPitch;
+    setPreservesPitch(nextPitch);
+    preservesPitchRef.current = nextPitch;
+    applyPlaybackRateToAudio(playbackRateRef.current, nextPitch);
   };
 
   // Sync volume & mute
@@ -118,9 +132,8 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     }
   }, [volume, isMuted]);
 
-  // Load audio source (either from IndexedDB cache or network MP3)
+  // Load audio source
   const loadAudioSource = useCallback(async (track, shouldPlay = false) => {
-    // Clean up previous blob URL
     if (activeBlobUrlRef.current) {
       URL.revokeObjectURL(activeBlobUrlRef.current);
       activeBlobUrlRef.current = null;
@@ -142,11 +155,11 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
       if (audio) {
         audio.src = targetSrc;
         audio.load();
-        applyPlaybackRateToAudio(playbackRateRef.current);
+        applyPlaybackRateToAudio(playbackRateRef.current, preservesPitchRef.current);
 
         if (shouldPlay) {
           audio.play().then(() => {
-            applyPlaybackRateToAudio(playbackRateRef.current);
+            applyPlaybackRateToAudio(playbackRateRef.current, preservesPitchRef.current);
             setIsPlaying(true);
           }).catch(err => {
             console.log('Play on track switch error:', err);
@@ -182,8 +195,8 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     const audio = audioRef.current;
     if (!audio) return;
 
-    const enforceRate = () => {
-      applyPlaybackRateToAudio(playbackRateRef.current);
+    const enforce = () => {
+      applyPlaybackRateToAudio(playbackRateRef.current, preservesPitchRef.current);
     };
 
     const onTimeUpdate = () => {
@@ -196,12 +209,12 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
       if (audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
         setDuration(audio.duration);
       }
-      enforceRate();
+      enforce();
     };
 
     const onPlay = () => {
       setIsPlaying(true);
-      enforceRate();
+      enforce();
     };
 
     const onPause = () => {
@@ -218,20 +231,20 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
 
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
-    audio.addEventListener('canplay', enforceRate);
+    audio.addEventListener('canplay', enforce);
     audio.addEventListener('play', onPlay);
-    audio.addEventListener('playing', enforceRate);
-    audio.addEventListener('seeked', enforceRate);
+    audio.addEventListener('playing', enforce);
+    audio.addEventListener('seeked', enforce);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('ended', onEnded);
 
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
-      audio.removeEventListener('canplay', enforceRate);
+      audio.removeEventListener('canplay', enforce);
       audio.removeEventListener('play', onPlay);
-      audio.removeEventListener('playing', enforceRate);
-      audio.removeEventListener('seeked', enforceRate);
+      audio.removeEventListener('playing', enforce);
+      audio.removeEventListener('seeked', enforce);
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
     };
@@ -257,9 +270,9 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
       audio.pause();
       setIsPlaying(false);
     } else {
-      applyPlaybackRateToAudio(playbackRateRef.current);
+      applyPlaybackRateToAudio(playbackRateRef.current, preservesPitchRef.current);
       audio.play().then(() => {
-        applyPlaybackRateToAudio(playbackRateRef.current);
+        applyPlaybackRateToAudio(playbackRateRef.current, preservesPitchRef.current);
         setIsPlaying(true);
       }).catch(e => console.log('Playback error:', e));
     }
@@ -270,7 +283,7 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     const audio = audioRef.current;
     if (!audio) return;
     audio.currentTime = Math.min(Math.max(audio.currentTime + seconds, 0), duration);
-    applyPlaybackRateToAudio(playbackRateRef.current);
+    applyPlaybackRateToAudio(playbackRateRef.current, preservesPitchRef.current);
   };
 
   const updateProgressFromClientX = (clientX) => {
@@ -282,7 +295,7 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     setCurrentTime(newTime);
     if (audioRef.current) {
       audioRef.current.currentTime = newTime;
-      applyPlaybackRateToAudio(playbackRateRef.current);
+      applyPlaybackRateToAudio(playbackRateRef.current, preservesPitchRef.current);
     }
   };
 
@@ -291,7 +304,7 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
     if (!track) return;
     const rect = track.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const raw = 0.5 + ratio * (2.5 - 0.5);
+    const raw = 0.5 + ratio * (3.0 - 0.5);
     const snapped = Math.round(raw * 4) / 4;
     changeSpeed(snapped, false);
   };
@@ -410,14 +423,14 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
   };
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const speedPercent = ((playbackRate - 0.5) / (2.5 - 0.5)) * 100;
+  const speedPercent = ((playbackRate - 0.5) / (3.0 - 0.5)) * 100;
   const volumePercent = isMuted ? 0 : volume * 100;
   const allCached = husseinSabryRecordings.every(r => cachedTrackIds.has(r.id));
 
   return (
     <div className="min-h-screen pb-16 space-y-6">
       
-      {/* Audio Element with direct src binding */}
+      {/* Audio Element */}
       <audio
         ref={audioRef}
         src={currentAudioSrc}
@@ -434,9 +447,12 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
             <h1 className="text-xl sm:text-3xl font-black text-slate-900 dark:text-white font-cairo">
               تسجيلات د. حسين صبري
             </h1>
+            <span className="text-[10px] sm:text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+              v3.4 - MP3 48kHz
+            </span>
           </div>
           <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 mt-1">
-            مراجعة الانفكشن والعملي والأوسكي (11 تسجيل MP3 سريع وبدون تأخير)
+            مراجعة الانفكشن والعملي والأوسكي (11 تسجيل صوتي ستيريو فائق السرعة)
           </p>
         </div>
 
@@ -790,7 +806,7 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
               role="slider"
               aria-label="تعديل سرعة التسجيل"
               aria-valuemin={0.5}
-              aria-valuemax={2.5}
+              aria-valuemax={3.0}
               aria-valuenow={playbackRate}
               tabIndex={0}
               onKeyDown={(e) => {
@@ -822,7 +838,7 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
                 isDraggingSpeedRef.current = false;
               }}
               className="relative w-24 sm:w-28 h-7 flex items-center cursor-pointer touch-none select-none"
-              title="اسحب أو اضغط لتعديل سرعة التسجيل"
+              title="اسحب لتعديل السرعة"
             >
               <div className="w-full h-2 bg-purple-100 dark:bg-slate-700 rounded-full overflow-hidden pointer-events-none">
                 <div 
@@ -839,18 +855,19 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
 
         </div>
 
-        {/* Quick One-Tap Speed Presets Bar with Active Confirmation Badge */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-purple-100 dark:border-purple-800/40">
+        {/* Speed Controls: Direct Presets + Pitch Mode Switch */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-purple-100 dark:border-purple-800/40">
           
-          <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Quick Speed Buttons */}
+          <div className="flex items-center gap-1.5 flex-wrap justify-center sm:justify-start">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 ml-1">سرعات مباشرة:</span>
-            {[0.75, 1, 1.25, 1.5, 1.75, 2, 2.5].map((preset) => {
+            {[0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3].map((preset) => {
               const isActive = Math.abs(playbackRate - preset) < 0.05;
               return (
                 <button
                   key={preset}
                   onClick={() => changeSpeed(preset, true)}
-                  className={`px-3 py-1 rounded-xl text-xs font-mono font-black transition-all active:scale-95 cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-xl text-xs font-mono font-black transition-all active:scale-95 cursor-pointer ${
                     isActive
                       ? 'bg-purple-600 text-white shadow-md ring-2 ring-purple-400/50 scale-105'
                       : 'bg-purple-50 dark:bg-slate-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/60 border border-purple-200 dark:border-purple-800'
@@ -862,11 +879,37 @@ export default function HusseinSabryRecordingsPage({ onBackToHome, initialTrackI
             })}
           </div>
 
-          {/* Real-time Applied Speed Indicator */}
-          <div className="flex items-center gap-1 text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-100/70 dark:bg-purple-950/70 px-2.5 py-1 rounded-xl border border-purple-200 dark:border-purple-800">
-            <Gauge className="w-3.5 h-3.5 text-purple-600" />
-            <span>السرعة الفعلية للصوت: </span>
-            <span className="font-mono font-black text-purple-900 dark:text-purple-200">{playbackRate.toFixed(playbackRate % 1 === 0 ? 1 : 2)}x</span>
+          {/* Mode Switch & Applied Speed Badge */}
+          <div className="flex items-center gap-2 flex-wrap justify-center">
+            {/* Pitch Mode Toggle Button */}
+            <button
+              onClick={togglePreservesPitch}
+              className={`px-3 py-1 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 border cursor-pointer active:scale-95 ${
+                preservesPitch
+                  ? 'bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-700'
+                  : 'bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700 shadow-xs'
+              }`}
+              title="اضغط للتبديل بين التسريع المباشر السريع أو الحفاظ على نبرة الصوت الطبيعية"
+            >
+              {preservesPitch ? (
+                <>
+                  <Mic2 className="w-3.5 h-3.5 text-purple-600" />
+                  <span>نبرة طبيعية (معالجة)</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-3.5 h-3.5 text-amber-600" />
+                  <span>تسريع فوري ومباشر ⚡</span>
+                </>
+              )}
+            </button>
+
+            {/* Current Speed Badge */}
+            <div className="flex items-center gap-1 text-xs font-bold text-purple-800 dark:text-purple-200 bg-purple-100/90 dark:bg-purple-950/90 px-3 py-1 rounded-xl border border-purple-300 dark:border-purple-800">
+              <Gauge className="w-3.5 h-3.5 text-purple-600" />
+              <span>السرعة: </span>
+              <span className="font-mono font-black text-purple-900 dark:text-purple-100">{playbackRate.toFixed(playbackRate % 1 === 0 ? 1 : 2)}x</span>
+            </div>
           </div>
 
         </div>
