@@ -53,7 +53,7 @@ export default function PrioritiesAndOsceSection({ onOpenLecturePage }) {
     ),
     (
       <span>
-        الامتحان هيبقى فيه من <span className="text-purple-600 dark:text-purple-400 font-black font-inter">6 الى 10</span> حالات مختلفة كلهم من ال <span className="text-purple-600 dark:text-purple-400 font-black font-inter">Most Common</span> في المنهج
+        الامتحان هيبقى فيه من <span className="text-purple-600 dark:text-purple-400 font-black font-inter">6 الى 10</span> حالات مختلفة كلهم من ال <span className="text-purple-600 dark:text-purple-400 font-black font-inter">Most Common</span> في المنهج ، كل طالب هيدخل <span className="text-purple-600 dark:text-purple-400 font-black">لجنتين</span> اللجنة فيها <span className="text-purple-600 dark:text-purple-400 font-black">دكتور واحد وحالة واحدة</span>
       </span>
     ),
     (
@@ -63,7 +63,7 @@ export default function PrioritiesAndOsceSection({ onOpenLecturePage }) {
     ),
     (
       <span>
-        الامتحان عبارة عن <span className="text-purple-600 dark:text-purple-400 font-black font-inter">Case Scenario</span> يعني الدكتور ماسك ورقة بيقولك الحالة ويسألك عليها مش هتمتحن على عيان
+        الامتحان عبارة عن <span className="text-purple-600 dark:text-purple-400 font-black font-inter">Case Scenario</span> يعني ورقة مكتوب فيها ال <span className="text-purple-600 dark:text-purple-400 font-black font-inter">case</span> هتجاوب شفوي وبعديها الدكتور يسألك
       </span>
     )
   ];
