@@ -9,6 +9,7 @@ import CommitteesSection from './components/CommitteesSection';
 import QuestionsSection from './components/QuestionsSection';
 import SelfTestSection from './components/SelfTestSection';
 import AudioLecturePage from './components/AudioLecturePage';
+import HusseinSabryRecordingsPage from './components/HusseinSabryRecordingsPage';
 import CaseSolverPage from './components/CaseSolverPage';
 import SocialFooter from './components/SocialFooter';
 import { getSoundEnabled, setSoundEnabled as saveSoundSetting, playClickSound } from './utils/soundEffects';
@@ -24,10 +25,11 @@ export default function App() {
   // Sound state
   const [soundEnabled, setSoundEnabled] = useState(() => getSoundEnabled());
 
-  // Page View: 'home' | 'lecture' | 'case'
+  // Page View: 'home' | 'lecture' | 'hussein-sabry' | 'case'
   const [currentPage, setCurrentPage] = useState(() => {
     const hash = window.location.hash;
     if (hash === '#lecture') return 'lecture';
+    if (hash === '#hussein-sabry') return 'hussein-sabry';
     if (hash.startsWith('#case-')) return 'case';
     return 'home';
   });
@@ -51,6 +53,8 @@ export default function App() {
       const hash = window.location.hash;
       if (hash === '#lecture') {
         setCurrentPage('lecture');
+      } else if (hash === '#hussein-sabry') {
+        setCurrentPage('hussein-sabry');
       } else if (hash.startsWith('#case-')) {
         const id = parseInt(hash.replace('#case-', ''), 10) || 1;
         setCurrentCaseId(id);
@@ -95,6 +99,13 @@ export default function App() {
   const openLecturePage = () => {
     setCurrentPage('lecture');
     window.location.hash = 'lecture';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const openHusseinSabryPage = () => {
+    playClickSound();
+    setCurrentPage('hussein-sabry');
+    window.location.hash = 'hussein-sabry';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -150,6 +161,9 @@ export default function App() {
         {currentPage === 'lecture' ? (
           /* Dedicated Separate Page for Audio Lecture and Full Transcript */
           <AudioLecturePage onBackToHome={backToHome} />
+        ) : currentPage === 'hussein-sabry' ? (
+          /* Dedicated Separate Page for Dr. Hussein Sabry Recordings */
+          <HusseinSabryRecordingsPage onBackToHome={backToHome} />
         ) : currentPage === 'case' ? (
           /* Dedicated Separate Page for Case Solver (Not a modal!) */
           <CaseSolverPage 
@@ -167,6 +181,7 @@ export default function App() {
             {/* Sections 1 & 2: 1- هتعمل ايه & 2- تفاصيل الاوسكي */}
             <PrioritiesAndOsceSection 
               onOpenLecturePage={openLecturePage}
+              onOpenHusseinSabry={openHusseinSabryPage}
             />
 
             {/* Section 3: 3- ملاحظات وتنبيهات */}

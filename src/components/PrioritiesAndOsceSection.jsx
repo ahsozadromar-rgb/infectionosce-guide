@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { playClickSound } from '../utils/soundEffects';
 
-export default function PrioritiesAndOsceSection({ onOpenLecturePage }) {
+export default function PrioritiesAndOsceSection({ onOpenLecturePage, onOpenHusseinSabry }) {
   // Ordered primary topics (Strict user list)
   const primaryTopics = [
     'Meningitis',
@@ -226,6 +226,27 @@ export default function PrioritiesAndOsceSection({ onOpenLecturePage }) {
           </p>
 
           <div className="space-y-1.5 pr-2">
+            {/* تسجيلات د. حسين صبري */}
+            <div
+              onClick={() => {
+                playClickSound();
+                if (onOpenHusseinSabry) onOpenHusseinSabry();
+              }}
+              className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/70 text-slate-800 dark:text-slate-200 text-xs sm:text-sm font-bold transition-all hover:bg-purple-100/70 dark:hover:bg-purple-900/50 hover:border-purple-400 cursor-pointer shadow-xs active:scale-[0.99] group"
+            >
+              <div className="flex items-center gap-3">
+                <span className="w-2 h-2 rounded-full bg-purple-600 shrink-0 group-hover:scale-125 transition-transform"></span>
+                <span className="font-extrabold text-purple-950 dark:text-purple-200">اسمع تسجيلات د. حسين صبري</span>
+              </div>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-purple-400 dark:border-purple-600 bg-purple-600 text-white font-extrabold text-xs shadow-xs group-hover:bg-purple-700 transition-colors pointer-events-none"
+              >
+                <Headphones className="w-3.5 h-3.5" />
+                <span>فتح التسجيلات (11 تسجيل)</span>
+              </button>
+            </div>
+
             {extendedTopics.map((item, idx) => {
               const isLn = item.includes('L.N Examination');
               if (isLn) {
