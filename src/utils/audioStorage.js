@@ -1,13 +1,23 @@
-// IndexedDB Storage for offline audio caching
-const DB_NAME = 'InfectionOsceAudioDB';
+// IndexedDB Storage for offline audio caching - Version 3 (MP3 only)
+const DB_NAME = 'InfectionOsceAudioDB_v3';
 const DB_VERSION = 1;
 const STORE_NAME = 'audio_blobs';
 
 let dbPromise = null;
 
+// Cleanup old databases if they exist
+if (typeof window !== 'undefined' && window.indexedDB) {
+  try {
+    window.indexedDB.deleteDatabase('InfectionOsceAudioDB');
+    window.indexedDB.deleteDatabase('InfectionOsceAudioDB_v2');
+  } catch (e) {
+    console.debug('Old DB cleanup error:', e);
+  }
+}
+
 function getDB() {
   if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
+  dbPromise = new Promise((resolve) => {
     if (typeof window === 'undefined' || !window.indexedDB) {
       resolve(null);
       return;
@@ -30,7 +40,7 @@ function getDB() {
   return dbPromise;
 }
 
-// Get single cached blob
+// Get single cached blob (only if valid audio/mpeg)
 export async function getCachedTrackBlob(trackId) {
   try {
     const db = await getDB();
@@ -40,7 +50,7 @@ export async function getCachedTrackBlob(trackId) {
       const store = tx.objectStore(STORE_NAME);
       const req = store.get(trackId);
       req.onsuccess = () => {
-        if (req.result && req.result.blob) {
+        if (req.result && req.result.blob && req.result.blob.size > 1000) {
           resolve(req.result.blob);
         } else {
           resolve(null);
@@ -66,6 +76,7 @@ export async function saveTrackBlob(trackId, blob) {
         id: trackId,
         blob,
         size: blob.size,
+        format: 'mp3',
         timestamp: Date.now()
       });
       req.onsuccess = () => resolve(true);
@@ -100,17 +111,18 @@ export async function getAllCachedTrackIds() {
 // Download and cache a single track
 export async function downloadAndCacheTrack(track, onProgress) {
   try {
-    const response = await fetch(track.audioUrl);
+    const response = await fetch(track.audioUrl, { cache: 'no-cache' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     
     const contentLength = response.headers.get('content-length');
     const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
     
     if (!response.body || !totalBytes) {
-      const blob = await response.blob();
-      await saveTrackBlob(track.id, blob);
+      const rawBlob = await response.blob();
+      const mp3Blob = new Blob([rawBlob], { type: 'audio/mpeg' });
+      await saveTrackBlob(track.id, mp3Blob);
       if (onProgress) onProgress(100);
-      return URL.createObjectURL(blob);
+      return URL.createObjectURL(mp3Blob);
     }
 
     const reader = response.body.getReader();
