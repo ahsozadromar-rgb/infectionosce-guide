@@ -321,7 +321,7 @@ Respond ONLY with valid JSON array of objects without markdown fences:
             ● كل بطاقة فيها case ولو خلصتهم كلهم تقدر تعمل case لنفسك هتتعمل بناءا على ملفات المحاضرات والمنهج
           </p>
           <p className="leading-relaxed">
-            ● وكل ال cases الي موجودة والي هتتعمل مصدر اجابتها محاضرات ومحتوى المنهج من ال ai
+            ● وكل ال cases الي موجودة والي هتتعمل مصدر اجابتها محاضرات ومحتوى المنهج مش ال ai
           </p>
         </div>
       </div>

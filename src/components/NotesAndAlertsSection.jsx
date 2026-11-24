@@ -5,6 +5,14 @@ import { playClickSound } from '../utils/soundEffects';
 export default function NotesAndAlertsSection() {
   const notesList = [
     {
+      type: 'text',
+      mainText: (
+        <span>
+          متنساش <span className="text-purple-600 dark:text-purple-400 font-black">اللوج بوك</span> وانت جاي
+        </span>
+      )
+    },
+    {
       type: 'direct_questions',
       mainText: (
         <span>
@@ -71,7 +79,7 @@ export default function NotesAndAlertsSection() {
       mainText: (
         <div className="space-y-1.5">
           <p>
-            المواضيع الاربعة <span className="text-purple-600 dark:text-purple-400 font-black font-inter">(Tetanus - HBV - H pylori - VHE)</span> مش هتنزل case لكن الدكتور ممكن يسألك فيهم <span className="text-purple-600 dark:text-purple-400 font-black">على قد الكلمتين</span> الي قالهم في المراجعة
+            المواضيع التلاتة <span className="text-purple-600 dark:text-purple-400 font-black font-inter">(Tetanus - HBV - VHE)</span> مش هتنزل case لكن الدكتور ممكن يسألك فيهم <span className="text-purple-600 dark:text-purple-400 font-black">على قد الكلمتين</span> الي قالهم في المراجعة
           </p>
           <p>
             والمواضيع دي <span className="text-purple-600 dark:text-purple-400 font-black font-inter">(FUO - Fever with jaundice - Fever with rash - Fever with Lymphadenopathy)</span> غالبا <span className="text-purple-600 dark:text-purple-400 font-black">سؤال جوا case او سؤال شفوي</span> من الدكتور
