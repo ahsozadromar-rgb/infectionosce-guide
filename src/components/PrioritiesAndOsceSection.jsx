@@ -53,7 +53,12 @@ export default function PrioritiesAndOsceSection({ onOpenLecturePage }) {
     ),
     (
       <span>
-        الامتحان هيبقى فيه من <span className="text-purple-600 dark:text-purple-400 font-black font-inter">6 الى 10</span> حالات مختلفة كلهم من ال <span className="text-purple-600 dark:text-purple-400 font-black font-inter">Most Common</span> في المنهج ، كل طالب هيدخل <span className="text-purple-600 dark:text-purple-400 font-black">لجنتين</span> اللجنة فيها <span className="text-purple-600 dark:text-purple-400 font-black">دكتور واحد وحالة واحدة</span>
+        كل طالب هيدخل <span className="text-purple-600 dark:text-purple-400 font-black">لجنتين</span> اللجنة فيها <span className="text-purple-600 dark:text-purple-400 font-black">دكتور واحد وحالة واحدة</span>
+      </span>
+    ),
+    (
+      <span>
+        الامتحان هيبقى فيه من <span className="text-purple-600 dark:text-purple-400 font-black font-inter">6 الى 10</span> حالات مختلفة كلهم من ال <span className="text-purple-600 dark:text-purple-400 font-black font-inter">Most Common</span> في المنهج
       </span>
     ),
     (
