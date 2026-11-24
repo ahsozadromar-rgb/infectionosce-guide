@@ -94,6 +94,14 @@ export default function NotesAndAlertsSection() {
           اللجان بعضها بتدخل <span className="text-purple-600 dark:text-purple-400 font-black">بالترتيب</span> وبعضها <span className="text-purple-600 dark:text-purple-400 font-black">مش لازم</span>
         </span>
       )
+    },
+    {
+      type: 'text',
+      mainText: (
+        <span>
+          الدكاترة بيحبوا يكلموك <span className="text-purple-600 dark:text-purple-400 font-black">عربي وانجليزي</span> وبيحبوا يسمعو منك <span className="text-purple-600 dark:text-purple-400 font-black">عربي وانجليزي</span>
+        </span>
+      )
     }
   ];
 
