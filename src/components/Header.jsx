@@ -12,7 +12,8 @@ import {
   HelpCircle,
   FileText,
   ListOrdered,
-  Users
+  Users,
+  Activity
 } from 'lucide-react';
 import { playClickSound } from '../utils/soundEffects';
 
@@ -32,6 +33,7 @@ export default function Header({
     { id: 'osce-details-section', label: 'تفاصيل الاوسكي', icon: FileText },
     { id: 'notes-section', label: 'ملاحظات وتنبيهات', icon: AlertTriangle },
     { id: 'committees-section', label: 'اعرف لجنتك', icon: Users },
+    { id: 'scores-section', label: 'Score', icon: Activity },
     { id: 'questions-section', label: 'اسئلة', icon: HelpCircle },
     { id: 'selftest-section', label: 'اختبر نفسك', icon: FileQuestion },
   ];

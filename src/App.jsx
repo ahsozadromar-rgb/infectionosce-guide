@@ -6,6 +6,7 @@ import HeroBanner from './components/HeroBanner';
 import PrioritiesAndOsceSection from './components/PrioritiesAndOsceSection';
 import NotesAndAlertsSection from './components/NotesAndAlertsSection';
 import CommitteesSection from './components/CommitteesSection';
+import ScoresSection from './components/ScoresSection';
 import QuestionsSection from './components/QuestionsSection';
 import SelfTestSection from './components/SelfTestSection';
 import AudioLecturePage from './components/AudioLecturePage';
@@ -189,6 +190,9 @@ export default function App() {
 
             {/* Section: اعرف لجنتك */}
             <CommitteesSection />
+
+            {/* Section: score */}
+            <ScoresSection />
 
             {/* Section: اسئلة */}
             <QuestionsSection />
