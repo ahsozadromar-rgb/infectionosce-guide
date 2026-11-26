@@ -166,34 +166,60 @@ export default function ScoresSection() {
     <section id="scores-section" className="space-y-6 pt-6">
       
       {/* Section Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 rounded-3xl bg-white/95 dark:bg-slate-900/90 border-2 border-purple-300 dark:border-purple-800 shadow-xl backdrop-blur-md">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-8 rounded-full bg-purple-600 inline-block"></span>
-            <span className="px-3 py-1 rounded-full text-xs font-black bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-              Important Scores • 50 حالة إكلينيكية
-            </span>
-          </div>
+      <div className="p-5 sm:p-6 rounded-3xl bg-white/95 dark:bg-slate-900/90 border-2 border-purple-300 dark:border-purple-800 shadow-xl backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <span className="w-3 h-8 rounded-full bg-purple-600 inline-block"></span>
           <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-cairo">
-            سكورات هامة للاوسكي (Important Scores)
+            Score
           </h2>
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-            تدريب تفاعلي وحساب إكلينيكي فوري على أهم 5 سكورات طبية (10 حالات لكل سكور) طبقاً لورقة الامتحان الرسمية
-          </p>
+        </div>
+      </div>
+
+      {/* Category Navigation Pills & Review Score Rules Button Bar */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-2.5 rounded-2xl bg-white/90 dark:bg-slate-900/90 border border-purple-200 dark:border-purple-800/60 shadow-sm">
+        
+        {/* The 5 Scores Navigation Pills */}
+        <div className="flex flex-wrap items-center gap-2 flex-1">
+          {scoresData.map((cat, idx) => {
+            const isActive = idx === activeCategoryIndex;
+            const stats = getCategoryStats(cat.id);
+            return (
+              <button
+                key={cat.id}
+                onClick={() => handleSelectCategory(idx)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer flex-1 sm:flex-none justify-center ${
+                  isActive
+                    ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-950/50 hover:text-purple-600'
+                }`}
+              >
+                {renderCategoryIcon(cat.id, "w-4 h-4")}
+                <span>{cat.shortName}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                  isActive 
+                    ? 'bg-purple-800 text-white' 
+                    : 'bg-purple-100 dark:bg-slate-800 text-purple-700 dark:text-purple-400'
+                }`}>
+                  {stats.correct}/{stats.total}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Global summary accordion toggle */}
+        {/* Review Score Rules & Table Button in this bar */}
         <button
           onClick={() => {
             playClickSound();
             setShowSummaryTable(prev => !prev);
           }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-purple-50 dark:bg-slate-800 border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-xs sm:text-sm font-bold transition-all shadow-sm shrink-0 cursor-pointer"
+          className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-purple-50 dark:bg-slate-800 border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer shrink-0"
         >
           <Award className="w-4 h-4 text-purple-600 dark:text-purple-400" />
           <span>{showSummaryTable ? 'إخفاء جدول السكور' : 'مراجعة جدول وقواعد السكور'}</span>
-          {showSummaryTable ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          {showSummaryTable ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
+
       </div>
 
       {/* Summary Table Cheat Sheet (Appears when toggled) */}
@@ -206,9 +232,6 @@ export default function ScoresSection() {
                 جدول وقواعد: {activeCategory.name}
               </h3>
             </div>
-            <span className="text-xs text-purple-600 dark:text-purple-400 font-bold bg-purple-50 dark:bg-purple-950 px-3 py-1 rounded-full border border-purple-200 dark:border-purple-800">
-              ملخص ورقة الأوسكي
-            </span>
           </div>
 
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
@@ -363,35 +386,6 @@ export default function ScoresSection() {
           )}
         </div>
       )}
-
-      {/* Category Navigation Pills (5 Scores) */}
-      <div className="flex flex-wrap items-center gap-2 p-2 rounded-2xl bg-white/90 dark:bg-slate-900/90 border border-purple-200 dark:border-purple-800/60 shadow-sm">
-        {scoresData.map((cat, idx) => {
-          const isActive = idx === activeCategoryIndex;
-          const stats = getCategoryStats(cat.id);
-          return (
-            <button
-              key={cat.id}
-              onClick={() => handleSelectCategory(idx)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer flex-1 sm:flex-none justify-center ${
-                isActive
-                  ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-950/50 hover:text-purple-600'
-              }`}
-            >
-              {renderCategoryIcon(cat.id, "w-4 h-4")}
-              <span>{cat.shortName}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
-                isActive 
-                  ? 'bg-purple-800 text-white' 
-                  : 'bg-purple-100 dark:bg-slate-800 text-purple-700 dark:text-purple-400'
-              }`}>
-                {stats.correct}/{stats.total}
-              </span>
-            </button>
-          );
-        })}
-      </div>
 
       {/* The Clinical Question Card (Exact Replica of Screenshot 2026-11-25 025626.png) */}
       <div className="p-6 sm:p-10 rounded-3xl bg-white dark:bg-slate-900 border-2 border-purple-200/90 dark:border-purple-800 shadow-xl space-y-6 relative">
